@@ -1,2 +1,4 @@
 # Group_5_PBL
-semester 5
+## Semester 5
+
+Proyek ini mengusulkan pengembangan aplikasi mobile untuk membantu pengguna memperoleh estimasi waktu panen berdasarkan sejumlah parameter pertanian, seperti waktu penanaman, suhu, dan kelembapan. Solusi memanfaatkan Machine Learning berbasis regresi untuk mempelajari hubungan antara faktor-faktor tersebut dengan hasil panen dari data historis. Model terbaik akan dievaluasi menggunakan metrik yang sesuai, kemudian diintegrasikan ke backend REST API menggunakan Flask. Aplikasi mobile dikembangkan menggunakan Flutter untuk menyediakan antarmuka input data, menampilkan hasil prediksi, dan menyimpan riwayat prediksi. Dari sisi Penjaminan Mutu Perangkat Lunak, proyek menerapkan dokumentasi kebutuhan, desain sistem, version control Git/GitHub, unit testing, API testing, integration testing, black-box testing, serta traceability kebutuhan terhadap test case. Produk akhir ditargetkan berupa aplikasi Android yang memiliki minimal satu alur prediksi end-to-end yang stabil, model yang tervalidasi dengan metrik yang jelas, serta bukti pengujian dan dokumentasi yang lengkap. <br> <br>
