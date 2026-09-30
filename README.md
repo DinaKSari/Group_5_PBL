@@ -628,7 +628,7 @@ Group_5_PBL/
 * Lead training Machine Learning
 * Model evaluation
 * Arsitektur aplikasi
-* Halaman prediksi
+* Home page
 * QA Plan
 * Requirement Traceability Matrix
 * Git workflow
@@ -638,7 +638,7 @@ Group_5_PBL/
 * Preprocessing
 * Feature engineering
 * Eksperimen model
-* Home Page
+* Halaman prediksi
 * Navigasi
 * Provider/Riverpod
 * Unit testing Flutter
