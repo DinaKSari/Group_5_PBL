@@ -143,3 +143,148 @@ class SearchField extends StatelessWidget {
     );
   }
 }
+
+class FilterRow extends StatelessWidget {
+  const FilterRow({super.key, required this.selected, required this.onSelected});
+  final _Filter selected;
+  final ValueChanged<_Filter> onSelected;
+
+  static const _labels = {_Filter.semua: 'Semua', _Filter.siap: 'Siap Panen', _Filter.tumbuh: 'Masih Tumbuh'};
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final e in _labels.entries) ...[
+          ChoiceChip(
+            label: Text(e.value),
+            selected: selected == e.key,
+            onSelected: (_) => onSelected(e.key),
+            showCheckmark: false,
+            selectedColor: AppColors.primary,
+            backgroundColor: Colors.white,
+            labelStyle: TextStyle(color: selected == e.key ? Colors.white : AppColors.text, fontSize: 13, fontWeight: FontWeight.w600),
+            side: const BorderSide(color: Color(0xFFE8ECE9)),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class HistoryTile extends StatelessWidget {
+  const HistoryTile(this.item, {super.key});
+  final HistoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE8ECE9))),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          iconColor: AppColors.primary,
+          title: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.location, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.event_available_outlined, size: 14, color: AppColors.accent),
+                        const SizedBox(width: 4),
+                        Flexible(child: Text('Panen: ${item.harvestDate}', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600))),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Input: ${item.inputDate}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              DaysBadge(item.daysLeft),
+            ],
+          ),
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ParamChip(Icons.calendar_month_outlined, '${item.age} hari'),
+                ParamChip(Icons.thermostat_outlined, '${item.temp}°C'),
+                ParamChip(Icons.cloud_outlined, '${item.humidity}%'),
+                ParamChip(Icons.science_outlined, '${item.tds} ppm'),
+                ParamChip(Icons.water_drop_outlined, 'pH ${item.ph}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DaysBadge extends StatelessWidget {
+  const DaysBadge(this.days, {super.key});
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = days <= 0;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: ready ? const [Color(0xFFE08A1E), Color(0xFFF2B04A)] : const [AppColors.primary, AppColors.accent],
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: SizedBox(
+        width: 62,
+        height: 62,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(ready ? '✓' : '$days', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1.1)),
+            Text(ready ? 'PANEN' : 'HARI LAGI', style: const TextStyle(color: Colors.white70, fontSize: 8, letterSpacing: 0.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ParamChip extends StatelessWidget {
+  const ParamChip(this.icon, this.label, {super.key});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: AppColors.chip, borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
