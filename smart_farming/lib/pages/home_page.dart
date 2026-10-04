@@ -86,11 +86,6 @@ class HeaderTile extends StatelessWidget {
               ],
             ),
           ),
-          IconButton.filled(
-            onPressed: () {},
-            style: IconButton.styleFrom(backgroundColor: Colors.white24),
-            icon: const Icon(Icons.favorite_border_rounded, color: Colors.white),
-          ),
         ],
       ),
     );
@@ -100,14 +95,13 @@ class HeaderTile extends StatelessWidget {
 class BatchTile extends StatelessWidget {
   const BatchTile({
     super.key,
-    this.variety = 'GRAND RAPIDS',
     this.daysLeft = 12,
     this.estimate = 'Jumat, 26 September 2026',
     this.currentHst = 22,
     this.totalHst = 34,
   });
 
-  final String variety, estimate;
+  final String estimate;
   final int daysLeft, currentHst, totalHst;
 
   @override
@@ -126,8 +120,7 @@ class BatchTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('⚡ Batch Terpantau', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                ChipTag(variety),
+                const Text('⚡ Batch Terpantau', style: TextStyle(color: AppColors.muted, fontSize: 13))
               ],
             ),
             const SizedBox(height: 8),
