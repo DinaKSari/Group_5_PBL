@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'pages/home_page.dart';
 
-void main() => runApp(const ProviderScope(child: MyApp()));
+import 'routes.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+void main() => runApp(const ProviderScope(child: App()));
+
+class App extends StatelessWidget {
+  const App({super.key});
+
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Week 4 - REST API',
-        theme: ThemeData(
-            colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        home: const HomePage(),
-      );
+  Widget build(BuildContext context) {
+    return MaterialApp.router( // wajib .router, bukan MaterialApp biasa
+      routerConfig: appRouter,
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF1B5E3A)),
+    );
+  }
 }

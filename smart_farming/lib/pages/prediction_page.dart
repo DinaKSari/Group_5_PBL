@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../routes.dart';
 
 class AppColors {
   static const primary = Color(0xFF1B5E3A);
@@ -60,11 +62,11 @@ class _PrediksiPageState extends State<PrediksiPage> {
   /// Metadata log -> disimpan untuk riwayat, tidak dikirim ke ML.
   Map<String, String> get meta => {'lokasi': _location.text.trim(), 'tanggal_input': _date.value.toIso8601String()};
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    // TODO: kirim mlPayload ke Flask, simpan meta bersama hasil, lalu navigasi ke home.
-    debugPrint('$meta $mlPayload');
-  }
+   void _submit() {
+     if (!_formKey.currentState!.validate()) return;
+     // TODO: kirim mlPayload ke Flask, simpan meta
+     context.go(AppRoute.home);
+   }
 
   @override
   Widget build(BuildContext context) {
@@ -109,11 +111,6 @@ class FormHeaderTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.maybePop(context),
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,6 +293,7 @@ class SubmitBar extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE8ECE9)))),
       child: SafeArea(
+        bottom: false,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton.icon(

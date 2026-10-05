@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../routes.dart';
+
 
 class AppColors {
   static const primary = Color(0xFF1B5E3A);
@@ -41,7 +44,7 @@ class HomePage extends StatelessWidget {
                 children: [
                   const BatchTile(),
                   const SizedBox(height: 14),
-                  PredictionTile(onTap: () {}), // TODO: navigasi
+                  PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
                   const SizedBox(height: 22),
                   SectionTile(title: 'PARAMETER KRITIS', action: 'Lihat Rentang Ideal', onAction: () {}),
                   const SizedBox(height: 12),
@@ -52,7 +55,6 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: const HomeNavTile(),
     );
   }
 }
@@ -277,24 +279,7 @@ class ParamTile extends StatelessWidget {
   }
 }
 
-class HomeNavTile extends StatelessWidget {
-  const HomeNavTile({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return NavigationBar(
-      backgroundColor: Colors.white,
-      indicatorColor: AppColors.chip,
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary), label: 'Beranda'),
-        NavigationDestination(icon: Icon(Icons.monitor_heart_outlined), label: 'Prediksi'),
-        NavigationDestination(icon: Icon(Icons.history_rounded), label: 'Riwayat'),
-      ],
-    );
-  }
-}
 
 class ChipTag extends StatelessWidget {
   const ChipTag(this.label, {super.key});
