@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
-
-class AppColors {
-  static const primary = Color(0xFF1B5E3A);
-  static const accent = Color(0xFF2E9E5B);
-  static const bg = Color(0xFFF4F6F4);
-  static const chip = Color(0xFFE3F1E8);
-  static const muted = Color(0xFF8A9590);
-  static const text = Color(0xFF14231B);
-}
+import 'package:smart_farming/theme/app_colors.dart';
 
 /// Definisi satu input ML. Data-driven agar build() pendek & mudah diuji.
 class FieldSpec {
@@ -183,7 +175,7 @@ class PlantingInfoTile extends StatelessWidget {
             const SizedBox(height: 12),
             ValueListenableBuilder<DateTime>(
               valueListenable: date,
-              builder: (_, d, __) => InkWell(
+              builder: (_, d, _) => InkWell(
                 onTap: () => _pick(context),
                 borderRadius: BorderRadius.circular(12),
                 child: InputDecorator(
@@ -225,7 +217,7 @@ class NumberFieldTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
         child: ValueListenableBuilder<double>(
           valueListenable: value,
-          builder: (_, v, __) => Column(
+          builder: (_, v, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
