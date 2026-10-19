@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'flask' => [
+        'url' => env('FLASK_ML_BASE_URL', 'http://127.0.0.1:5057'),
+        'timeout' => (int) env('FLASK_ML_TIMEOUT', 8),
+    ],
+
 ];

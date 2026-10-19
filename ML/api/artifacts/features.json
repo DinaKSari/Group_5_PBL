@@ -1,0 +1,49 @@
+{
+  "features": [
+    "umur_hst",
+    "suhu",
+    "kelembapan",
+    "tds",
+    "ph"
+  ],
+  "target": "days_left",
+  "ranges": {
+    "umur_hst": [
+      1,
+      45
+    ],
+    "suhu": [
+      10,
+      40
+    ],
+    "kelembapan": [
+      30,
+      100
+    ],
+    "tds": [
+      200,
+      1500
+    ],
+    "ph": [
+      4,
+      9
+    ]
+  },
+  "selected_model": "RandomForestRegressor",
+  "dataset_source": "sample",
+  "n_rows": 1200,
+  "metrics": [
+    {
+      "model": "LinearRegression",
+      "MAE": 3.759,
+      "RMSE": 4.82,
+      "R2": 0.694
+    },
+    {
+      "model": "RandomForestRegressor",
+      "MAE": 1.845,
+      "RMSE": 2.479,
+      "R2": 0.919
+    }
+  ]
+}
