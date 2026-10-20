@@ -46,7 +46,7 @@ class HomePage extends StatelessWidget {
                   const SizedBox(height: 14),
                   PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
                   const SizedBox(height: 22),
-                  SectionTile(title: 'PARAMETER KRITIS', action: 'Lihat Rentang Ideal', onAction: () {}),
+                  SectionTile(title: 'PARAMETER KRITIS', action: '', onAction: () {}),
                   const SizedBox(height: 12),
                   const ParamGrid(params: _params),
                 ],
@@ -80,7 +80,7 @@ class HeaderTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('HIDROPONIK SELADA', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2)),
+                Text('Selada Seperti Anak Sendiri', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2)),
                 SizedBox(height: 6),
                 Text('Halo, Petani Selada 👋', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
                 SizedBox(height: 6),
