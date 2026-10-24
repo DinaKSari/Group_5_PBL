@@ -7,33 +7,39 @@ import 'pages/login_page.dart';
 import 'pages/prediction_page.dart';
 import 'pages/splash_page.dart';
 
-abstract final class AppRoute {
+abstract final class AppRoutes {
   static const splash = '/splash';
   static const login = '/login';
   static const home = '/home';
   static const dashboard = '/dashboard';
   static const prediksi = '/prediksi';
   static const riwayat = '/riwayat';
+
+  /// Rute default yang dituju saat notifikasi tidak menyertakan rute spesifik
+  static const defaultRoute = riwayat;
 }
 
+/// Alias backward-compatibility untuk AppRoutes
+typedef AppRoute = AppRoutes;
+
 final appRouter = GoRouter(
-  initialLocation: AppRoute.splash,
+  initialLocation: AppRoutes.splash,
   routes: [
     GoRoute(
       path: '/',
-      redirect: (context, state) => AppRoute.splash,
+      redirect: (context, state) => AppRoutes.splash,
     ),
     GoRoute(
-      path: AppRoute.splash,
+      path: AppRoutes.splash,
       builder: (context, state) => const SplashPage(),
     ),
     GoRoute(
-      path: AppRoute.login,
+      path: AppRoutes.login,
       builder: (context, state) => const LoginPage(),
     ),
     GoRoute(
-      path: AppRoute.dashboard,
-      redirect: (context, state) => AppRoute.home,
+      path: AppRoutes.dashboard,
+      redirect: (context, state) => AppRoutes.home,
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, shell) => MainShell(shell: shell),
@@ -41,7 +47,7 @@ final appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRoute.home,
+              path: AppRoutes.home,
               builder: (context, state) => const HomePage(),
             ),
           ],
@@ -49,7 +55,7 @@ final appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRoute.prediksi,
+              path: AppRoutes.prediksi,
               builder: (context, state) => const PrediksiPage(),
             ),
           ],
@@ -57,7 +63,7 @@ final appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRoute.riwayat,
+              path: AppRoutes.riwayat,
               builder: (context, state) => const HistoryPage(),
             ),
           ],
