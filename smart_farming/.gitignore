@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Backend secrets & local data
+backend/firebase-service-account.json
+backend/.env
+backend/*.db
+.env

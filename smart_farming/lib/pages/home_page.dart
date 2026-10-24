@@ -1,6 +1,10 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../routes.dart';
+import '../services/push_service.dart';
 
 class AppColors {
   static const primary = Color(0xFF1B5E3A);
@@ -26,8 +30,22 @@ const _params = [
 ];
 
 /// Halaman Home & Dashboard terintegrasi dalam satu file ringkas.
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Minta izin notifikasi setelah pengguna masuk ke halaman utama (bukan di splash)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushService.instance.requestNotificationPermission();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +118,21 @@ class HeaderTile extends StatelessWidget {
     );
   }
 
+  Future<void> _copyDebugToken(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final token = PushService.instance.currentFcmToken ??
+        await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await Clipboard.setData(ClipboardData(text: token));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('FCM Token berhasil disalin ke clipboard (Debug)'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -114,15 +147,27 @@ class HeaderTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Selada Seperti Anak Sendiri', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2)),
-                SizedBox(height: 6),
-                Text('Halo, Petani Selada 👋', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-                SizedBox(height: 6),
-                Text('Pantau pertumbuhan & prediksi waktu panen akurat', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                const Text(
+                  'Selada Seperti Anak Sendiri',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onLongPress: kDebugMode ? () => _copyDebugToken(context) : null,
+                  child: const Text(
+                    'Halo, Petani Selada 👋',
+                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Pantau pertumbuhan & prediksi waktu panen akurat',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                ),
               ],
             ),
           ),
