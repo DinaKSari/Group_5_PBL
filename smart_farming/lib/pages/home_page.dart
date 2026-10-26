@@ -1,5 +1,24 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
 import 'package:smart_farming/theme/app_colors.dart';
+=======
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import '../routes.dart';
+import '../services/push_service.dart';
+
+class AppColors {
+  static const primary = Color(0xFF1B5E3A);
+  static const accent = Color(0xFF2E9E5B);
+  static const bg = Color(0xFFF4F6F4);
+  static const chip = Color(0xFFE3F1E8);
+  static const muted = Color(0xFF8A9590);
+  static const text = Color(0xFF14231B);
+  static const border = Color(0xFFE8ECE9);
+}
+>>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 
 class ParamData {
   const ParamData(this.icon, this.value, this.label, this.range, this.tag);
@@ -14,9 +33,29 @@ const _params = [
   ParamData(Icons.cloud_outlined, '78%', 'Kelembaban', '70 – 85%', 'Baik'),
 ];
 
+<<<<<<< HEAD
 class HomePage extends StatelessWidget {
   const HomePage({super.key, this.onNavigateToPrediction});
   final VoidCallback? onNavigateToPrediction;
+=======
+/// Halaman Home & Dashboard terintegrasi dalam satu file ringkas.
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+>>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Minta izin notifikasi setelah pengguna masuk ke halaman utama (bukan di splash)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushService.instance.requestNotificationPermission();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,9 +73,13 @@ class HomePage extends StatelessWidget {
                 children: [
                   const BatchTile(),
                   const SizedBox(height: 14),
+<<<<<<< HEAD
                   PredictionTile(onTap: onNavigateToPrediction ?? () {}),
+=======
+                  PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
+>>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
                   const SizedBox(height: 22),
-                  SectionTile(title: 'PARAMETER KRITIS', action: 'Lihat Rentang Ideal', onAction: () {}),
+                  const SectionTile(title: 'PARAMETER KRITIS'),
                   const SizedBox(height: 12),
                   const ParamGrid(params: _params),
                 ],
@@ -49,13 +92,65 @@ class HomePage extends StatelessWidget {
   }
 }
 
+/// Alias agar dashboard dan home menjadi satu kesatuan di file ini
+typedef DashboardPage = HomePage;
+
 class HeaderTile extends StatelessWidget {
   const HeaderTile({super.key});
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Keluar Akun', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: const Text('Apakah Anda yakin ingin keluar ke halaman login?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: AppColors.muted)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go(AppRoute.login);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyDebugToken(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final token = PushService.instance.currentFcmToken ??
+        await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await Clipboard.setData(ClipboardData(text: token));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('FCM Token berhasil disalin ke clipboard (Debug)'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 20, 20, 56),
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 18, 16, 56),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -66,17 +161,39 @@ class HeaderTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('HIDROPONIK SELADA', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2)),
-                SizedBox(height: 6),
-                Text('Halo, Petani Selada 👋', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-                SizedBox(height: 6),
-                Text('Pantau pertumbuhan & prediksi waktu panen akurat', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                const Text(
+                  'Selada Seperti Anak Sendiri',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onLongPress: kDebugMode ? () => _copyDebugToken(context) : null,
+                  child: const Text(
+                    'Halo, Petani Selada 👋',
+                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Pantau pertumbuhan & prediksi waktu panen akurat',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                ),
               ],
             ),
+          ),
+          IconButton(
+            onPressed: () => _confirmLogout(context),
+            tooltip: 'Keluar',
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
           ),
         ],
       ),
@@ -109,12 +226,7 @@ class BatchTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('⚡ Batch Terpantau', style: TextStyle(color: AppColors.muted, fontSize: 13))
-              ],
-            ),
+            const Text('⚡ Batch Terpantau', style: TextStyle(color: AppColors.muted, fontSize: 13)),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -189,24 +301,17 @@ class PredictionTile extends StatelessWidget {
 }
 
 class SectionTile extends StatelessWidget {
-  const SectionTile({super.key, required this.title, required this.action, required this.onAction});
-  final String title, action;
-  final VoidCallback onAction;
+  const SectionTile({super.key, required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1)),
-        TextButton.icon(
-          onPressed: onAction,
-          style: TextButton.styleFrom(foregroundColor: AppColors.accent, padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
-          iconAlignment: IconAlignment.end,
-          icon: const Icon(Icons.north_east_rounded, size: 14),
-          label: Text(action, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        ),
-      ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title,
+        style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1),
+      ),
     );
   }
 }
@@ -243,7 +348,7 @@ class ParamTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8ECE9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -269,8 +374,11 @@ class ParamTile extends StatelessWidget {
   }
 }
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 class ChipTag extends StatelessWidget {
   const ChipTag(this.label, {super.key});
   final String label;

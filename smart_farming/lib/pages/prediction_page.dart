@@ -1,5 +1,19 @@
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
 import 'package:smart_farming/theme/app_colors.dart';
+=======
+import 'package:go_router/go_router.dart';
+import '../routes.dart';
+
+class AppColors {
+  static const primary = Color(0xFF1B5E3A);
+  static const accent = Color(0xFF2E9E5B);
+  static const bg = Color(0xFFF4F6F4);
+  static const chip = Color(0xFFE3F1E8);
+  static const muted = Color(0xFF8A9590);
+  static const text = Color(0xFF14231B);
+}
+>>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 
 /// Definisi satu input ML. Data-driven agar build() pendek & mudah diuji.
 class FieldSpec {
@@ -52,11 +66,11 @@ class _PrediksiPageState extends State<PrediksiPage> {
   /// Metadata log -> disimpan untuk riwayat, tidak dikirim ke ML.
   Map<String, String> get meta => {'lokasi': _location.text.trim(), 'tanggal_input': _date.value.toIso8601String()};
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    // TODO: kirim mlPayload ke Flask, simpan meta bersama hasil, lalu navigasi ke home.
-    debugPrint('$meta $mlPayload');
-  }
+   void _submit() {
+     if (!_formKey.currentState!.validate()) return;
+     // TODO: kirim mlPayload ke Flask, simpan meta
+     context.go(AppRoute.home);
+   }
 
   @override
   Widget build(BuildContext context) {
@@ -101,11 +115,6 @@ class FormHeaderTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.maybePop(context),
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,6 +297,7 @@ class SubmitBar extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE8ECE9)))),
       child: SafeArea(
+        bottom: false,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton.icon(
