@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
-
-class AppColors {
-  static const primary = Color(0xFF1B5E3A);
-  static const accent = Color(0xFF2E9E5B);
-  static const bg = Color(0xFFF4F6F4);
-  static const chip = Color(0xFFE3F1E8);
-  static const muted = Color(0xFF8A9590);
-  static const text = Color(0xFF14231B);
-}
+import 'package:smart_farming/theme/app_colors.dart';
 
 /// Satu log prediksi. Fitur ML: umur, suhu, kelembapan, TDS, pH.
 class HistoryItem {
@@ -37,7 +29,7 @@ const _dummy = [
   HistoryItem(location: 'Greenhouse Blok B – Rak 4', inputDate: '8 Sep 2026', harvestDate: 'Sabtu, 20 Sep 2026', daysLeft: 0, age: 37, temp: 25, humidity: 72, tds: 800, ph: 6.1),
 ];
 
-enum _Filter { semua, siap, tumbuh }
+enum HistoryFilter { semua, siap, tumbuh }
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -49,13 +41,13 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   final _items = _dummy; // TODO: ganti dengan data dari provider/API
   String _query = '';
-  _Filter _filter = _Filter.semua;
+  HistoryFilter _filter = HistoryFilter.semua;
 
   List<HistoryItem> get _visible => _items.where((e) {
         final okFilter = switch (_filter) {
-          _Filter.semua => true,
-          _Filter.siap => e.isReady,
-          _Filter.tumbuh => !e.isReady,
+          HistoryFilter.semua => true,
+          HistoryFilter.siap => e.isReady,
+          HistoryFilter.tumbuh => !e.isReady,
         };
         return okFilter && e.searchText.contains(_query);
       }).toList();
@@ -84,7 +76,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     itemCount: list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (_, i) => HistoryTile(list[i]),
                   ),
           ),
@@ -146,10 +138,10 @@ class SearchField extends StatelessWidget {
 
 class FilterRow extends StatelessWidget {
   const FilterRow({super.key, required this.selected, required this.onSelected});
-  final _Filter selected;
-  final ValueChanged<_Filter> onSelected;
+  final HistoryFilter selected;
+  final ValueChanged<HistoryFilter> onSelected;
 
-  static const _labels = {_Filter.semua: 'Semua', _Filter.siap: 'Siap Panen', _Filter.tumbuh: 'Masih Tumbuh'};
+  static const _labels = {HistoryFilter.semua: 'Semua', HistoryFilter.siap: 'Siap Panen', HistoryFilter.tumbuh: 'Masih Tumbuh'};
 
   @override
   Widget build(BuildContext context) {
