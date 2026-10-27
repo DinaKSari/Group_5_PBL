@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smart_farming/theme/app_colors.dart';
+import 'package:smart_farming/core/app_colors.dart';
 
 /// Satu log prediksi. Fitur ML: umur, suhu, kelembapan, TDS, pH.
 class HistoryItem {

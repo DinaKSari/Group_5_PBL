@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../routes.dart';
 import '../services/push_service.dart';
-import 'package:smart_farming/theme/app_colors.dart';
+import 'package:smart_farming/core/app_colors.dart';
 
 class ParamData {
   const ParamData(this.icon, this.value, this.label, this.range, this.tag);

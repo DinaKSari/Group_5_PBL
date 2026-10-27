@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../routes.dart';
-import 'package:smart_farming/theme/app_colors.dart';
+import 'package:smart_farming/core/app_colors.dart';
 
 /// Definisi satu input ML. Data-driven agar build() pendek & mudah diuji.
 class FieldSpec {
