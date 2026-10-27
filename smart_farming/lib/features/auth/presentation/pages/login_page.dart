@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../routes.dart';
-import '../core/app_colors.dart';
+import '../../../../routes.dart';
+import '../../../../core/app_colors.dart';
+import '../providers/auth_providers.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController(text: 'petani@smartfarming.id');
   final _passwordController = TextEditingController(text: 'selada2026');
@@ -30,10 +32,25 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    final outcome = await ref.read(authRepositoryProvider).signIn(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
+
+    final failure = outcome.failure;
+    if (!outcome.signedIn || failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login gagal: ${failure?.message ?? 'akun tidak dikenali'}'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
