@@ -1,24 +1,11 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:smart_farming/theme/app_colors.dart';
-=======
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../routes.dart';
 import '../services/push_service.dart';
-
-class AppColors {
-  static const primary = Color(0xFF1B5E3A);
-  static const accent = Color(0xFF2E9E5B);
-  static const bg = Color(0xFFF4F6F4);
-  static const chip = Color(0xFFE3F1E8);
-  static const muted = Color(0xFF8A9590);
-  static const text = Color(0xFF14231B);
-  static const border = Color(0xFFE8ECE9);
-}
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
+import 'package:smart_farming/theme/app_colors.dart';
 
 class ParamData {
   const ParamData(this.icon, this.value, this.label, this.range, this.tag);
@@ -33,15 +20,9 @@ const _params = [
   ParamData(Icons.cloud_outlined, '78%', 'Kelembaban', '70 – 85%', 'Baik'),
 ];
 
-<<<<<<< HEAD
-class HomePage extends StatelessWidget {
-  const HomePage({super.key, this.onNavigateToPrediction});
-  final VoidCallback? onNavigateToPrediction;
-=======
 /// Halaman Home & Dashboard terintegrasi dalam satu file ringkas.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -73,11 +54,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   const BatchTile(),
                   const SizedBox(height: 14),
-<<<<<<< HEAD
-                  PredictionTile(onTap: onNavigateToPrediction ?? () {}),
-=======
                   PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
                   const SizedBox(height: 22),
                   const SectionTile(title: 'PARAMETER KRITIS'),
                   const SizedBox(height: 12),
@@ -135,6 +112,8 @@ class HeaderTile extends StatelessWidget {
   Future<void> _copyDebugToken(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final token = PushService.instance.currentFcmToken ??
+        // Keep an FCM token here; register/onRegistered exposes a Firebase Installation ID.
+        // ignore: deprecated_member_use
         await FirebaseMessaging.instance.getToken();
     if (token != null) {
       await Clipboard.setData(ClipboardData(text: token));
@@ -374,11 +353,6 @@ class ParamTile extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 class ChipTag extends StatelessWidget {
   const ChipTag(this.label, {super.key});
   final String label;

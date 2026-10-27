@@ -120,6 +120,8 @@ class PushService {
   /// Setup token dan listener refresh
   Future<void> _setupToken() async {
     try {
+      // Keep the FCM token expected by the backend; register/onRegistered exposes a Firebase Installation ID.
+      // ignore: deprecated_member_use
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         _currentFcmToken = token;
@@ -130,6 +132,8 @@ class PushService {
       debugPrint('[PushService] Gagal mengambil token FCM: $e');
     }
 
+    // Keep listening for refreshed FCM tokens expected by the backend.
+    // ignore: deprecated_member_use
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
       _currentFcmToken = newToken;
       debugPrint('[PushService] Token FCM diperbarui: ${maskToken(newToken)}');
