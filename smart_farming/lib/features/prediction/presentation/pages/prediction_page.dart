@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/app_colors.dart';
 import '../../../../routes.dart';
+import '../../../history/domain/entities/history_entry.dart';
+import '../../../history/presentation/providers/history_providers.dart';
 import '../../domain/entities/parameter_spec.dart';
 import '../../domain/entities/prediction_request.dart';
 import '../providers/prediction_providers.dart';
@@ -77,8 +79,17 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
       return;
     }
 
-    // TODO(history): simpan hasil + meta (lokasi, tanggal) via HistoryRepository
     final result = outcome.result!;
+    final entry = HistoryEntry(
+      location: _location.text.trim(),
+      inputDate: _date.value,
+      daysLeft: result.daysLeft,
+      parameters: _request,
+    );
+    await ref.read(historyRepositoryProvider).addEntry(entry);
+    ref.invalidate(historyProvider);
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(

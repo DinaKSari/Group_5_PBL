@@ -1,60 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:smart_farming/core/app_colors.dart';
-
-/// Satu log prediksi. Fitur ML: umur, suhu, kelembapan, TDS, pH.
-class HistoryItem {
-  const HistoryItem({
-    required this.location,
-    required this.inputDate,
-    required this.harvestDate,
-    required this.daysLeft,
-    required this.age,
-    required this.temp,
-    required this.humidity,
-    required this.tds,
-    required this.ph,
-  });
-  final String location, inputDate, harvestDate;
-  final int daysLeft, age, humidity, tds;
-  final double temp, ph;
-
-  bool get isReady => daysLeft <= 0;
-  String get searchText => '$location $inputDate $harvestDate'.toLowerCase();
-}
-
-const _dummy = [
-  HistoryItem(location: 'Greenhouse Blok A – Rak 1', inputDate: '14 Sep 2026', harvestDate: 'Jumat, 26 Sep 2026', daysLeft: 12, age: 22, temp: 23, humidity: 78, tds: 710, ph: 6.2),
-  HistoryItem(location: 'NFT Sayur Sehat – Modul 3', inputDate: '12 Sep 2026', harvestDate: 'Senin, 22 Sep 2026', daysLeft: 8, age: 31, temp: 24.5, humidity: 74, tds: 880, ph: 6.4),
-  HistoryItem(location: 'DFT Blok C – Lajur 2', inputDate: '10 Sep 2026', harvestDate: 'Kamis, 7 Okt 2026', daysLeft: 21, age: 15, temp: 22, humidity: 80, tds: 650, ph: 6.0),
-  HistoryItem(location: 'Greenhouse Blok B – Rak 4', inputDate: '8 Sep 2026', harvestDate: 'Sabtu, 20 Sep 2026', daysLeft: 0, age: 37, temp: 25, humidity: 72, tds: 800, ph: 6.1),
-];
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/app_colors.dart';
+import '../../domain/entities/history_entry.dart';
+import '../providers/history_providers.dart';
 
 enum HistoryFilter { semua, siap, tumbuh }
 
-class HistoryPage extends StatefulWidget {
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const _weekdays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+String _fmtShort(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+String _fmtFull(DateTime d) => '${_weekdays[d.weekday - 1]}, ${_fmtShort(d)}';
+
+class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
+  ConsumerState<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
-  final _items = _dummy; // TODO: ganti dengan data dari provider/API
+class _HistoryPageState extends ConsumerState<HistoryPage> {
   String _query = '';
   HistoryFilter _filter = HistoryFilter.semua;
 
-  List<HistoryItem> get _visible => _items.where((e) {
-        final okFilter = switch (_filter) {
-          HistoryFilter.semua => true,
-          HistoryFilter.siap => e.isReady,
-          HistoryFilter.tumbuh => !e.isReady,
-        };
-        return okFilter && e.searchText.contains(_query);
-      }).toList();
+  List<HistoryEntry> _visible(List<HistoryEntry> items) {
+    final q = _query.trim().toLowerCase();
+    return items.where((e) {
+      final okFilter = switch (_filter) {
+        HistoryFilter.semua => true,
+        HistoryFilter.siap => e.isReady,
+        HistoryFilter.tumbuh => !e.isReady,
+      };
+      final okQuery = q.isEmpty ||
+          e.location.toLowerCase().contains(q) ||
+          _fmtShort(e.inputDate).toLowerCase().contains(q) ||
+          _fmtFull(e.harvestDate).toLowerCase().contains(q);
+      return okFilter && okQuery;
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final list = _visible;
+    final history = ref.watch(historyProvider);
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Column(
@@ -64,21 +51,41 @@ class _HistoryPageState extends State<HistoryPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Column(
               children: [
-                SearchField(onChanged: (v) => setState(() => _query = v.trim().toLowerCase())),
+                SearchField(onChanged: (v) => setState(() => _query = v)),
                 const SizedBox(height: 10),
                 FilterRow(selected: _filter, onSelected: (f) => setState(() => _filter = f)),
               ],
             ),
           ),
           Expanded(
-            child: list.isEmpty
-                ? const Center(child: Text('Tidak ada riwayat', style: TextStyle(color: AppColors.muted)))
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    itemCount: list.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => HistoryTile(list[i]),
-                  ),
+            child: history.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Gagal memuat riwayat', style: TextStyle(color: AppColors.muted)),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      onPressed: () => ref.invalidate(historyProvider),
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+              data: (items) {
+                final list = _visible(items);
+                if (list.isEmpty) {
+                  return const Center(child: Text('Tidak ada riwayat', style: TextStyle(color: AppColors.muted)));
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => HistoryTile(list[i]),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -129,7 +136,7 @@ class SearchField extends StatelessWidget {
         fillColor: Colors.white,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE8ECE9))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.accent)),
       ),
     );
@@ -156,7 +163,7 @@ class FilterRow extends StatelessWidget {
             selectedColor: AppColors.primary,
             backgroundColor: Colors.white,
             labelStyle: TextStyle(color: selected == e.key ? Colors.white : AppColors.text, fontSize: 13, fontWeight: FontWeight.w600),
-            side: const BorderSide(color: Color(0xFFE8ECE9)),
+            side: const BorderSide(color: AppColors.border),
           ),
           const SizedBox(width: 8),
         ],
@@ -167,16 +174,17 @@ class FilterRow extends StatelessWidget {
 
 class HistoryTile extends StatelessWidget {
   const HistoryTile(this.item, {super.key});
-  final HistoryItem item;
+  final HistoryEntry item;
 
   @override
   Widget build(BuildContext context) {
+    final p = item.parameters;
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
       color: Colors.white,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE8ECE9))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -195,11 +203,11 @@ class HistoryTile extends StatelessWidget {
                       children: [
                         const Icon(Icons.event_available_outlined, size: 14, color: AppColors.accent),
                         const SizedBox(width: 4),
-                        Flexible(child: Text('Panen: ${item.harvestDate}', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600))),
+                        Flexible(child: Text('Panen: ${_fmtFull(item.harvestDate)}', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600))),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('Input: ${item.inputDate}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                    Text('Input: ${_fmtShort(item.inputDate)}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -212,11 +220,11 @@ class HistoryTile extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                ParamChip(Icons.calendar_month_outlined, '${item.age} hari'),
-                ParamChip(Icons.thermostat_outlined, '${item.temp}°C'),
-                ParamChip(Icons.cloud_outlined, '${item.humidity}%'),
-                ParamChip(Icons.science_outlined, '${item.tds} ppm'),
-                ParamChip(Icons.water_drop_outlined, 'pH ${item.ph}'),
+                ParamChip(Icons.calendar_month_outlined, '${p.plantAge.toStringAsFixed(0)} hari'),
+                ParamChip(Icons.thermostat_outlined, '${p.temperature}°C'),
+                ParamChip(Icons.cloud_outlined, '${p.humidity.toStringAsFixed(0)}%'),
+                ParamChip(Icons.science_outlined, '${p.tds.toStringAsFixed(0)} ppm'),
+                ParamChip(Icons.water_drop_outlined, 'pH ${p.ph}'),
               ],
             ),
           ],

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/history/presentation/pages/history_page.dart';
 import 'features/prediction/presentation/pages/prediction_page.dart';
-import 'pages/history_page.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
 import 'pages/splash_page.dart';
