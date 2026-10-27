@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smart_farming/core/app_colors.dart';
+import '../features/prediction/presentation/pages/prediction_page.dart';
 import 'home_page.dart';
-import 'prediction_page.dart';
 import 'history_page.dart';
 
 /// Shell utama: mengelola IndexedStack untuk 3 tab utama
