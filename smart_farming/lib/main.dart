@@ -3,10 +3,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/notification/data/repositories/notification_repository_impl.dart'
+    show firebaseMessagingBackgroundHandler;
+import 'features/notification/presentation/providers/notification_providers.dart';
 import 'firebase_options.dart';
 import 'routes.dart';
-import 'services/device_api.dart';
-import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,26 +21,23 @@ void main() async {
   runApp(const ProviderScope(child: App()));
 }
 
-class App extends StatefulWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  State<App> createState() => _AppState();
+  ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> {
+class _AppState extends ConsumerState<App> {
   @override
   void initState() {
     super.initState();
 
-    // Inisialisasi push service dan penanganan terminated state setelah router siap
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await PushService.instance.initialize(
-        onToken: (token) {
-          DeviceApi.registerDevice(token);
-        },
-      );
-      await PushService.instance.setupTerminatedMessage();
+    // Wiring notifikasi setelah router siap; navigasi tetap milik presentation.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationRepositoryProvider).initialize(
+            onNotificationOpened: (route) => appRouter.go(route),
+          );
     });
   }
 
