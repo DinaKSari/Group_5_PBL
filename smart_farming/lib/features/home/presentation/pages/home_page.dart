@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../features/notification/presentation/providers/notification_providers.dart';
-import '../routes.dart';
+import '../../../notification/presentation/providers/notification_providers.dart';
+import '../../../../routes.dart';
 import 'package:smart_farming/core/app_colors.dart';
 
 class ParamData {

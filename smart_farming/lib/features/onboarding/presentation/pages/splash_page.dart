@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../routes.dart';
-import '../core/app_colors.dart';
+import '../../../../routes.dart';
+import '../../../../core/app_colors.dart';
 
 class _SplashSlideData {
   const _SplashSlideData({
