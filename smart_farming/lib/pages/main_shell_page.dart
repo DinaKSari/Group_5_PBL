@@ -26,7 +26,7 @@ class _MainShellPageState extends State<MainShellPage> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomePage(onNavigateToPrediction: () => _goTo(1)),
+          const HomePage(),
           const PrediksiPage(),
           const HistoryPage(),
         ],

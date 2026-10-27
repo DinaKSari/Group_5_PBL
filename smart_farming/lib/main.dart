@@ -2,11 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-<<<<<<< HEAD
-import 'pages/main_shell_page.dart';
-=======
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 
+import 'firebase_options.dart';
 import 'routes.dart';
 import 'services/device_api.dart';
 import 'services/push_service.dart';
@@ -15,7 +12,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Inisialisasi Firebase & background handler top-level sebelum runApp
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(const ProviderScope(child: App()));
@@ -25,13 +24,6 @@ class App extends StatefulWidget {
   const App({super.key});
 
   @override
-<<<<<<< HEAD
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Smart Farming - Hidroponik Selada',
-        theme: ThemeData(
-            colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        home: const MainShellPage(),
-=======
   State<App> createState() => _AppState();
 }
 
@@ -46,7 +38,6 @@ class _AppState extends State<App> {
         onToken: (token) {
           DeviceApi.registerDevice(token);
         },
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
       );
       await PushService.instance.setupTerminatedMessage();
     });

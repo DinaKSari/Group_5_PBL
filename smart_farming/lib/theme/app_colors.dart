@@ -7,4 +7,5 @@ class AppColors {
   static const chip = Color(0xFFE3F1E8);
   static const muted = Color(0xFF8A9590);
   static const text = Color(0xFF14231B);
+  static const border = Color(0xFFE8ECE9);
 }
