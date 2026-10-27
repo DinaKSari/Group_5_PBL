@@ -1,42 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../routes.dart';
-import 'package:smart_farming/core/app_colors.dart';
+import '../../../../core/app_colors.dart';
+import '../../../../routes.dart';
+import '../../domain/entities/parameter_spec.dart';
+import '../../domain/entities/prediction_request.dart';
+import '../providers/prediction_providers.dart';
 
-/// Definisi satu input ML. Data-driven agar build() pendek & mudah diuji.
-class FieldSpec {
-  const FieldSpec(this.key, this.icon, this.label, this.unit, this.min, this.max, this.step, this.initial);
-  final String key, label, unit;
-  final IconData icon;
-  final double min, max, step, initial;
-  int get decimals => step < 1 ? 1 : 0;
-}
-
-const _fields = [
-  FieldSpec('umur_hst', Icons.calendar_month_outlined, 'Umur Selada', 'hari', 1, 45, 1, 20),
-  FieldSpec('suhu', Icons.thermostat_outlined, 'Suhu', '°C', 10, 40, 0.5, 23),
-  FieldSpec('kelembapan', Icons.cloud_outlined, 'Kelembapan', '%', 30, 100, 1, 78),
-  FieldSpec('tds', Icons.science_outlined, 'TDS / Nutrisi', 'ppm', 200, 1500, 10, 720),
-  FieldSpec('ph', Icons.water_drop_outlined, 'pH Air', '', 4, 9, 0.1, 6.0),
-];
+/// Ikon presentation-only per kunci parameter (domain tidak kenal IconData).
+const _fieldIcons = {
+  'umur_hst': Icons.calendar_month_outlined,
+  'suhu': Icons.thermostat_outlined,
+  'kelembapan': Icons.cloud_outlined,
+  'tds': Icons.science_outlined,
+  'ph': Icons.water_drop_outlined,
+};
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
-class PrediksiPage extends StatefulWidget {
+class PrediksiPage extends ConsumerStatefulWidget {
   const PrediksiPage({super.key});
 
   @override
-  State<PrediksiPage> createState() => _PrediksiPageState();
+  ConsumerState<PrediksiPage> createState() => _PrediksiPageState();
 }
 
-class _PrediksiPageState extends State<PrediksiPage> {
+class _PrediksiPageState extends ConsumerState<PrediksiPage> {
   final _formKey = GlobalKey<FormState>();
   final _location = TextEditingController();
   final _date = ValueNotifier<DateTime>(DateTime.now());
 
   // ValueNotifier per field: hanya tile yang berubah yang rebuild.
-  final _values = {for (final f in _fields) f.key: ValueNotifier<double>(f.initial)};
+  final _values = {
+    for (final f in kGrowthParameters) f.key: ValueNotifier<double>(f.defaultValue)
+  };
+
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -48,17 +48,48 @@ class _PrediksiPageState extends State<PrediksiPage> {
     super.dispose();
   }
 
-  /// Hanya fitur ML -> dikirim ke Flask.
-  Map<String, double> get mlPayload => {for (final e in _values.entries) e.key: e.value.value};
+  PredictionRequest get _request => PredictionRequest(
+        plantAge: _values['umur_hst']!.value,
+        temperature: _values['suhu']!.value,
+        humidity: _values['kelembapan']!.value,
+        tds: _values['tds']!.value,
+        ph: _values['ph']!.value,
+      );
 
-  /// Metadata log -> disimpan untuk riwayat, tidak dikirim ke ML.
-  Map<String, String> get meta => {'lokasi': _location.text.trim(), 'tanggal_input': _date.value.toIso8601String()};
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_location.text.trim().isEmpty) return;
 
-   void _submit() {
-     if (!_formKey.currentState!.validate()) return;
-     // TODO: kirim mlPayload ke Flask, simpan meta
-     context.go(AppRoute.home);
-   }
+    setState(() => _loading = true);
+    final outcome = await ref.read(predictionRepositoryProvider).predict(_request);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    final failure = outcome.failure;
+    if (failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Prediksi gagal: ${failure.message}'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // TODO(history): simpan hasil + meta (lokasi, tanggal) via HistoryRepository
+    final result = outcome.result!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Estimasi panen ${_fmtDate(result.harvestDate)} — ${result.daysLeft} hari lagi 🥬',
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    context.go(AppRoute.home);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,9 +105,13 @@ class _PrediksiPageState extends State<PrediksiPage> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
                   PlantingInfoTile(location: _location, date: _date),
-                  for (final f in _fields) ...[
+                  for (final f in kGrowthParameters) ...[
                     const SizedBox(height: 12),
-                    NumberFieldTile(spec: f, value: _values[f.key]!),
+                    NumberFieldTile(
+                      spec: f,
+                      icon: _fieldIcons[f.key]!,
+                      value: _values[f.key]!,
+                    ),
                   ],
                 ],
               ),
@@ -84,7 +119,7 @@ class _PrediksiPageState extends State<PrediksiPage> {
           ),
         ],
       ),
-      bottomNavigationBar: SubmitBar(onPressed: _submit),
+      bottomNavigationBar: SubmitBar(onPressed: _submit, loading: _loading),
     );
   }
 }
@@ -119,7 +154,6 @@ class FormHeaderTile extends StatelessWidget {
   }
 }
 
-
 /// Form info log (non-ML): lokasi tanam & tanggal input.
 class PlantingInfoTile extends StatelessWidget {
   const PlantingInfoTile({super.key, required this.location, required this.date});
@@ -139,12 +173,12 @@ class PlantingInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE8ECE9)));
+    final border = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border));
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8ECE9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -196,11 +230,12 @@ class PlantingInfoTile extends StatelessWidget {
 }
 
 class NumberFieldTile extends StatelessWidget {
-  const NumberFieldTile({super.key, required this.spec, required this.value});
-  final FieldSpec spec;
+  const NumberFieldTile({super.key, required this.spec, required this.icon, required this.value});
+  final ParameterSpec spec;
+  final IconData icon;
   final ValueNotifier<double> value;
 
-  void _set(double v) => value.value = v.clamp(spec.min, spec.max).toDouble();
+  void _set(double v) => value.value = spec.clampValue(v);
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +243,7 @@ class NumberFieldTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8ECE9)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -219,7 +254,7 @@ class NumberFieldTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(spec.icon, size: 20, color: AppColors.accent),
+                  Icon(icon, size: 20, color: AppColors.accent),
                   const SizedBox(width: 8),
                   Expanded(child: Text(spec.label, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 14))),
                   _Stepper(icon: Icons.remove, onTap: v > spec.min ? () => _set(v - spec.step) : null),
@@ -283,7 +318,7 @@ class SubmitBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE8ECE9)))),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.border))),
       child: SafeArea(
         bottom: false,
         child: Padding(
