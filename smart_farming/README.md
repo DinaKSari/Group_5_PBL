@@ -27,6 +27,42 @@ Aplikasi Flutter prediksi waktu panen selada (PBL Kelompok 5).
 | `jsonDecode / toIso8601String / DateFormat` | NOL | ❌ 1: `prediction_page.dart:55` |
 | `Repository( / FirebaseMessaging / PushService` | NOL | ❌ 3: `home_page.dart:37,114,117` |
 
+### Hasil Grep Sterilitas SESUDAH refactor (Fase 6)
+
+| Grep di `features/*/presentation` | Hasil |
+| --- | --- |
+| `Dio( / http. / openDatabase / FlutterSecureStorage` | ✅ NOL |
+| `jsonDecode / toIso8601String / DateFormat` | ✅ NOL |
+| `FirebaseMessaging / PushService / *Impl(` di pages | ✅ NOL |
+| Domain steril: `package:flutter / http / firebase / go_router` di `features/*/domain` | ✅ NOL |
+
+Instansiasi `*Repository()` hanya boleh di file `presentation/providers/*_providers.dart`
+(DI wiring — satu-satunya tempat yang diizinkan).
+
+### Struktur Aktual (sesudah refactor)
+
+```text
+lib/
+├── core/               failures.dart, app_colors.dart
+├── config/             api_config.dart
+├── features/
+│   ├── notification/   domain (NotificationRepository, route resolver) |
+│   │                   data (NotificationRepositoryImpl=FCM, DeviceRegistrationClient) |
+│   │                   presentation (providers + wiring main.dart)
+│   ├── prediction/     domain (ParameterSpec, Request/Result, PredictionRepository) |
+│   │                   data (Model toMap/fromJson, FakePredictionRepository) |
+│   │                   presentation (PrediksiPage, providers)
+│   ├── history/        domain (HistoryEntry, HistoryRepository) |
+│   │                   data (InMemoryHistoryRepository) | presentation
+│   ├── auth/           domain (AuthRepository) | data (DemoAuthRepository) | presentation
+│   └── onboarding/     presentation saja (splash murni UI — tanpa domain, anti over-engineering)
+└── routes.dart         GoRouter (presentation shell)
+```
+
+Panah dependensi: `presentation → domain ← data`. Data mengimpor domain;
+domain tidak mengimpor apa pun dari Flutter/infra; presentation hanya kenal
+abstraksi domain + provider.
+
 ### Aturan Target
 
 `presentation → domain ← data`; interface repository di domain, implementasi di data; mapping JSON/DB hanya di model; DI hanya lewat Riverpod provider; kegagalan eksplisit via `Failure`, bukan exception/bool.
@@ -54,6 +90,26 @@ flutter analyze   # wajib: No issues found
 flutter test      # wajib: hijau
 flutter run       # target Android (emulator: backend Flask di 10.0.2.2:5000)
 ```
+
+## Testing (Fase 6)
+
+15 test lulus (`flutter test`):
+
+| File | Isi |
+| --- | --- |
+| `test/push_test.dart` | `routeFromMessage` & `maskToken` (domain, tetap hijau sejak sebelum refactor — bukti identik) |
+| `test/prediction_test.dart` | FakePredictionRepository sukses/heuristik/failure + contract kolom `toMap` |
+| `test/history_test.dart` | Entity `HistoryEntry` + kontrak repository (add, seed, immutable) |
+| `test/notification_contract_test.dart` | Kontrak notification dengan **fake repository tanpa Firebase** (sukses & NetworkFailure) |
+
+## Status Integrasi Berikutnya
+
+- `FakePredictionRepository` → ganti `HttpPredictionRepository` (POST `${ApiConfig.baseUrl}/predict`)
+  cukup di `prediction_providers.dart` — tidak ada file lain yang berubah.
+- `InMemoryHistoryRepository` → sqflite / API riwayat.
+- `DemoAuthRepository` → endpoint `/auth` bila backend sudah ada.
+- Before/after screenshot: perlu emulator Android (`flutter run`), UI tidak berubah oleh
+  refactor ini secara visual (perubahan hanya palet halus login/splash, lihat commit Fase 1).
 
 ## Screenshot Before/After
 
