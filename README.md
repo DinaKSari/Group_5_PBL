@@ -203,15 +203,20 @@ Flutter
 
 Model yang akan dibandingkan:
 
-* Linear Regression
-* Decision Tree Regressor
-* Random Forest Regressor
+* SVM
+* KNN
+* Naive Bayes
+* XGBoost
 
 Evaluasi model menggunakan:
 
-* MAE
-* MSE / RMSE
-* R²
+* Akurasi
+* Precision (macro)
+* Recall
+* (macro)
+* F1 (macro)
+* ROC-AUC(OvR)
+* Waktu tuning / prediksi 
 
 Model terbaik akan dipilih berdasarkan performa validasi/testing, stabilitas, dan kesesuaian untuk implementasi.
 
@@ -287,7 +292,7 @@ Scope awal project dan pembagian tanggung jawab anggota.
 * [x] Mempelajari dataset pertumbuhan selada
 * [x] Identifikasi variabel dataset
 * [x] Menentukan kebutuhan sistem
-* [] Menentukan target Machine Learning
+* [x] Menentukan target Machine Learning
 
 **Output:**
 
@@ -299,13 +304,13 @@ Kandidat dataset dan requirement awal sistem.
 
 **Target:**
 
-* [ ] Exploratory Data Analysis
-* [ ] Analisis distribusi data
-* [ ] Analisis missing value
-* [ ] Analisis outlier
-* [ ] Analisis korelasi
-* [ ] Perancangan alur aplikasi
-* [ ] Perancangan arsitektur sistem
+* [x] Exploratory Data Analysis
+* [x] Analisis distribusi data
+* [x] Analisis missing value
+* [x] Analisis outlier
+* [x] Analisis korelasi
+* [x] Perancangan alur aplikasi
+* [x] Perancangan arsitektur sistem
 
 **Output:**
 
@@ -317,11 +322,11 @@ Hasil EDA, studi kelayakan, dan desain awal sistem.
 
 **Target:**
 
-* [] Finalisasi proposal PBL
-* [] Finalisasi scope project
-* [] Menentukan strategi pengujian
-* [] Menyusun QA Plan awal
-* [] Menentukan test case awal
+* [x] Finalisasi proposal PBL
+* [x] Finalisasi scope project
+* [x] Menentukan strategi pengujian
+* [x] Menyusun QA Plan awal
+* [x] Menentukan test case awal
 
 **Output:**
 
@@ -331,17 +336,17 @@ Proposal PBL dan QA Plan.
 
 ---
 
-## 🟡 Minggu 5 — Preprocessing & Baseline Model
+## 🟢 Minggu 5 — Preprocessing & Baseline Model
 
 **Target:**
 
-* [ ] Data cleaning
-* [ ] Preprocessing dataset
-* [ ] Feature engineering
-* [ ] Train/test split
-* [ ] Membuat baseline model
-* [ ] Scaffolding project Flutter
-* [ ] Scaffolding Flask API
+* [x] Data cleaning
+* [x] Preprocessing dataset
+* [x] Feature engineering
+* [x] Train/test split
+* [x] Membuat baseline model
+* [x] Scaffolding project Flutter
+* [x] Scaffolding Flask API
 
 **Output:**
 
@@ -349,18 +354,22 @@ Baseline Machine Learning model dan skeleton aplikasi.
 
 ---
 
-## 🟡 Minggu 6 — Model Comparison & Evaluation
+## 🟢 Minggu 6 — Model Comparison & Evaluation
 
 **Target:**
 
-* [ ] Training Linear Regression
-* [ ] Training Decision Tree Regressor
-* [ ] Training Random Forest Regressor
-* [ ] Membandingkan performa model
-* [ ] Menghitung MAE
-* [ ] Menghitung RMSE
-* [ ] Menghitung R²
-* [ ] Menentukan kandidat model terbaik
+* [x] Training SVM
+* [x] Training KNN
+* [x] Training Naive Bayes
+* [x] Training XGBoost
+* [x] Membandingkan performa model
+* [x] Menghitung Akurasi
+* [x] Menghitung Precision (macro)
+* [x] Menghitung Recall (macro)
+* [x] Menghitung F1 (macro)
+* [x] Menghitung ROC-AUC(OvR)
+* [x] Menghitung Waktu tuning / prediksi 
+* [x] Menentukan kandidat model terbaik
 
 **Output:**
 
@@ -708,8 +717,8 @@ Semester 5 — Tahun Akademik 2026/2027.
 | Proposal               | 🟢 Selesai            |
 | Dataset                | 🟢 Kandidat tersedia  |
 | EDA                    | 🟡 Dalam pengembangan |
-| Preprocessing          | ⚪ Belum               |
-| Machine Learning Model | ⚪ Belum               |
+| Preprocessing          | 🟢 Selesai            |
+| Machine Learning Model | 🟢 Selesai            |
 | Flask REST API         | ⚪ Belum               |
 | Flutter Application    | 🟡 Dalam pengembangan |
 | Database               | ⚪ Belum               |
@@ -723,7 +732,7 @@ Semester 5 — Tahun Akademik 2026/2027.
 
 Target akhir project adalah menghasilkan prototype aplikasi Android yang mampu melakukan **prediksi waktu panen tanaman selada secara end-to-end**, mulai dari input parameter oleh pengguna, pemrosesan melalui REST API, prediksi menggunakan model Machine Learning, hingga menampilkan hasil dan menyimpan riwayat prediksi.
 
-Keberhasilan project ditargetkan mencakup aplikasi Flutter yang berjalan, minimal satu fitur Machine Learning yang menghasilkan prediksi nyata, model dengan evaluasi MAE/RMSE/R², endpoint API yang dapat diuji, alur Flutter → Flask → ML → Flask → Flutter yang berjalan, serta dokumentasi testing dan requirement traceability.
+Keberhasilan project ditargetkan mencakup aplikasi Flutter yang berjalan, minimal satu fitur Machine Learning yang menghasilkan prediksi nyata, model dengan evaluasi Akurasi, Precision (macro), Recall (macro), F1 (macro), ROC-AUC(OvR), Waktu tuning / prediksi , endpoint API yang dapat diuji, alur Flutter → Flask → ML → Flask → Flutter yang berjalan, serta dokumentasi testing dan requirement traceability.
 
 ---
 
