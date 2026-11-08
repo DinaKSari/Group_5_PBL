@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_farming/routes.dart';
-import 'package:smart_farming/services/push_service.dart';
+import 'package:smart_farming/features/notification/domain/usecases/notification_route_resolver.dart';
 
 void main() {
   group('routeFromMessage tests', () {
