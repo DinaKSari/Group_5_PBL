@@ -1,24 +1,11 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:smart_farming/theme/app_colors.dart';
-=======
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../routes.dart';
-import '../services/push_service.dart';
-
-class AppColors {
-  static const primary = Color(0xFF1B5E3A);
-  static const accent = Color(0xFF2E9E5B);
-  static const bg = Color(0xFFF4F6F4);
-  static const chip = Color(0xFFE3F1E8);
-  static const muted = Color(0xFF8A9590);
-  static const text = Color(0xFF14231B);
-  static const border = Color(0xFFE8ECE9);
-}
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
+import '../../../notification/presentation/providers/notification_providers.dart';
+import '../../../../routes.dart';
+import 'package:smart_farming/core/app_colors.dart';
 
 class ParamData {
   const ParamData(this.icon, this.value, this.label, this.range, this.tag);
@@ -33,27 +20,21 @@ const _params = [
   ParamData(Icons.cloud_outlined, '78%', 'Kelembaban', '70 – 85%', 'Baik'),
 ];
 
-<<<<<<< HEAD
-class HomePage extends StatelessWidget {
-  const HomePage({super.key, this.onNavigateToPrediction});
-  final VoidCallback? onNavigateToPrediction;
-=======
 /// Halaman Home & Dashboard terintegrasi dalam satu file ringkas.
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
     // Minta izin notifikasi setelah pengguna masuk ke halaman utama (bukan di splash)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      PushService.instance.requestNotificationPermission();
+      ref.read(notificationRepositoryProvider).requestPermissionAndSubscribe();
     });
   }
 
@@ -73,11 +54,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   const BatchTile(),
                   const SizedBox(height: 14),
-<<<<<<< HEAD
-                  PredictionTile(onTap: onNavigateToPrediction ?? () {}),
-=======
                   PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
                   const SizedBox(height: 22),
                   const SectionTile(title: 'PARAMETER KRITIS'),
                   const SizedBox(height: 12),
@@ -95,7 +72,7 @@ class _HomePageState extends State<HomePage> {
 /// Alias agar dashboard dan home menjadi satu kesatuan di file ini
 typedef DashboardPage = HomePage;
 
-class HeaderTile extends StatelessWidget {
+class HeaderTile extends ConsumerWidget {
   const HeaderTile({super.key});
 
   void _confirmLogout(BuildContext context) {
@@ -132,10 +109,10 @@ class HeaderTile extends StatelessWidget {
     );
   }
 
-  Future<void> _copyDebugToken(BuildContext context) async {
+  Future<void> _copyDebugToken(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    final token = PushService.instance.currentFcmToken ??
-        await FirebaseMessaging.instance.getToken();
+    final result = await ref.read(notificationRepositoryProvider).currentOrFreshToken();
+    final token = result.token;
     if (token != null) {
       await Clipboard.setData(ClipboardData(text: token));
       messenger.showSnackBar(
@@ -148,7 +125,7 @@ class HeaderTile extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 18, 16, 56),
       decoration: const BoxDecoration(
@@ -171,7 +148,7 @@ class HeaderTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 GestureDetector(
-                  onLongPress: kDebugMode ? () => _copyDebugToken(context) : null,
+                  onLongPress: kDebugMode ? () => _copyDebugToken(context, ref) : null,
                   child: const Text(
                     'Halo, Petani Selada 👋',
                     style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
@@ -374,11 +351,6 @@ class ParamTile extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 98d1319d8447f7ac23f3a3a904ab2ad51894b1f7
 class ChipTag extends StatelessWidget {
   const ChipTag(this.label, {super.key});
   final String label;
