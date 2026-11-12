@@ -6,6 +6,7 @@ use App\Http\Requests\PredictionRequest;
 use App\Http\Resources\PredictionResource;
 use App\Models\ActivityLog;
 use App\Models\Prediction;
+use App\Models\SensorReading;
 use App\Services\MlInferenceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,8 @@ class PredictionController extends Controller
     public function __construct(private readonly MlInferenceService $ml) {}
 
     /**
-     * Validasi -> panggil model ML -> simpan hasil + activity log -> balas JSON.
+     * Validasi -> panggil model ML -> simpan hasil + sensor reading + activity log -> balas JSON.
+     * Response digabung dengan payload mentah ML agar Flutter cukup parse satu format.
      */
     public function store(PredictionRequest $request): JsonResponse
     {
@@ -31,7 +33,8 @@ class PredictionController extends Controller
 
         $record = Prediction::create([
             'user_id' => $request->user()?->id,
-            'lokasi' => $data['lokasi'],
+            'user_uid' => $data['user_uid'] ?? null,
+            'lokasi' => $data['lokasi'] ?? 'Kebun',
             'tanggal_input' => $data['tanggal_input'] ?? now()->toDateString(),
             'umur_hst' => $data['umur_hst'],
             'suhu' => $data['suhu'],
@@ -43,6 +46,18 @@ class PredictionController extends Controller
             'harvest_date' => $harvestDate,
             'ml_model' => $prediction['selected_model'] ?? null,
             'meta' => $prediction['features_used'] ?? null,
+            'ml_result' => $prediction,
+        ]);
+
+        SensorReading::create([
+            'user_uid' => $data['user_uid'] ?? null,
+            'lokasi' => $record->lokasi,
+            'umur_hst' => $data['umur_hst'],
+            'suhu' => $data['suhu'],
+            'kelembapan' => $data['kelembapan'],
+            'tds' => $data['tds'],
+            'ph' => $data['ph'],
+            'source' => 'manual',
         ]);
 
         ActivityLog::record(
@@ -52,17 +67,21 @@ class PredictionController extends Controller
             ['days_left' => $record->days_left, 'harvest_date' => $record->harvest_date],
         );
 
-        return (new PredictionResource($record))
-            ->response()
-            ->setStatusCode(201);
+        return response()->json([
+            ...$prediction,
+            'id' => $record->id,
+            'lokasi' => $record->lokasi,
+            'harvest_date' => $record->harvest_date->toDateString(),
+        ], 201);
     }
 
     /**
-     * Riwayat prediksi. Jika login -> milik user; jika tidak -> seluruhnya.
+     * Riwayat prediksi. user_uid (Firebase) -> milik user tsb; tanpa user_uid -> seluruhnya.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Prediction::query()
+            ->when($request->query('user_uid'), fn ($q, $uid) => $q->where('user_uid', $uid))
             ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
             ->latest()
             ->limit((int) $request->integer('limit', 50));

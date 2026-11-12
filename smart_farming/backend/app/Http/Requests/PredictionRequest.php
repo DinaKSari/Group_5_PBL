@@ -17,8 +17,9 @@ class PredictionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'lokasi' => ['required', 'string', 'max:120'],
+            'lokasi' => ['nullable', 'string', 'max:120'],
             'tanggal_input' => ['nullable', 'date'],
+            'user_uid' => ['nullable', 'string', 'max:128'],
             'umur_hst' => ['required', 'numeric', 'between:1,45'],
             'suhu' => ['required', 'numeric', 'between:10,40'],
             'kelembapan' => ['required', 'numeric', 'between:30,100'],
