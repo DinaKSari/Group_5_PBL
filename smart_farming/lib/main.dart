@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/session.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
 import 'features/notification/presentation/providers/notification_providers.dart';
@@ -17,6 +19,11 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Pulihkan identitas sesi lama (Firebase persisten) sebelum UI berjalan.
+  final restoredUser = FirebaseAuth.instance.currentUser;
+  Session.uid = restoredUser?.uid;
+  Session.email = restoredUser?.email;
 
   runApp(const ProviderScope(child: App()));
 }
