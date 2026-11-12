@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/in_memory_history_repository.dart';
+import '../../data/repositories/http_history_repository.dart';
 import '../../domain/entities/history_entry.dart';
 import '../../domain/repositories/history_repository.dart';
 
 final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
-  return InMemoryHistoryRepository.instance;
+  return const HttpHistoryRepository();
 });
 
 /// Sumber daftar riwayat untuk UI. invalidate() = refresh setelah entri baru.

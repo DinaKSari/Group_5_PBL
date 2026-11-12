@@ -1,7 +1,7 @@
 abstract final class ApiConfig {
-  /// Base URL endpoint server backend Flask.
-  /// - Untuk Android Emulator: 'http://10.0.2.2:5000'
+  /// Base URL REST API backend Laravel (Flask hanya boleh diakses oleh Laravel).
+  /// - Untuk Android Emulator: 'http://10.0.2.2:8000/api'
   /// - Untuk Perangkat Fisik (Physical Device): Ganti dengan IP lokal laptop di jaringan Wi-Fi yang sama
-  ///   (contoh: 'http://192.168.1.15:5000')
-  static const String baseUrl = 'http://10.0.2.2:5000';
+  ///   (contoh: 'http://192.168.1.15:8000/api')
+  static const String baseUrl = 'http://10.0.2.2:8000/api';
 }

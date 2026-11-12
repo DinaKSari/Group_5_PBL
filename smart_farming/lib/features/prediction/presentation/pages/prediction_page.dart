@@ -7,6 +7,7 @@ import '../../../history/domain/entities/history_entry.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../domain/entities/parameter_spec.dart';
 import '../../domain/entities/prediction_request.dart';
+import '../../domain/entities/prediction_result.dart';
 import '../providers/prediction_providers.dart';
 
 /// Ikon presentation-only per kunci parameter (domain tidak kenal IconData).
@@ -90,16 +91,27 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
     ref.invalidate(historyProvider);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Estimasi panen ${_fmtDate(result.harvestDate)} — ${result.daysLeft} hari lagi 🥬',
-        ),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
+    _showResultBottomSheet(result, entry);
+  }
+
+  void _showResultBottomSheet(PredictionResult result, HistoryEntry entry) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PredictionResultBottomSheet(
+        result: result,
+        entry: entry,
+        onViewHistory: () {
+          Navigator.pop(ctx);
+          context.go(AppRoute.riwayat);
+        },
+        onDone: () {
+          Navigator.pop(ctx);
+          context.go(AppRoute.home);
+        },
       ),
     );
-    context.go(AppRoute.home);
   }
 
   @override
@@ -348,6 +360,320 @@ class SubmitBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Modal BottomSheet interaktif untuk menampilkan kartu hasil prediksi multi-task:
+/// 1. Estimasi sisa hari & tanggal panen (Regresi)
+/// 2. Fase pertumbuhan tanaman (Klasifikasi)
+/// 3. Profil mikroklimat & rekomendasi nutrisi (Klusterisasi)
+class PredictionResultBottomSheet extends StatelessWidget {
+  const PredictionResultBottomSheet({
+    super.key,
+    required this.result,
+    required this.entry,
+    required this.onViewHistory,
+    required this.onDone,
+  });
+
+  final PredictionResult result;
+  final HistoryEntry entry;
+  final VoidCallback onViewHistory;
+  final VoidCallback onDone;
+
+  Color _getStageColor(String stage) {
+    if (stage.contains('Semai')) return Colors.blue.shade700;
+    if (stage.contains('Vegetatif')) return AppColors.primary;
+    return Colors.amber.shade800;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stageColor = _getStageColor(result.growthStage);
+    final req = entry.parameters;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.chip,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Hasil Prediksi Panen',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
+                    ),
+                    Text(
+                      entry.location,
+                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded, color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Main Card Hero (Regresi Hari Panen)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF14472C), AppColors.accent],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          result.isReady ? 'SIAP DIPANEN! 🥬' : 'ESTIMASI SISA WAKTU',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 11,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '${result.daysLeft}',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Hari Lagi',
+                              style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Target Tanggal',
+                            style: TextStyle(fontSize: 11, color: Colors.white70),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _fmtDate(result.harvestDate),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Fase Pertumbuhan (Klasifikasi) & Kluster Lingkungan
+          Row(
+            children: [
+              // Badge Klasifikasi Fase
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.category_outlined, size: 16, color: stageColor),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Fase Tanaman',
+                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        result.growthStage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: stageColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Badge Kluster Lingkungan
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.bubble_chart_outlined, size: 16, color: AppColors.primary),
+                          SizedBox(width: 6),
+                          Text(
+                            'Profil Lingkungan',
+                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        result.clusterDesc,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.text),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Parameter Lingkungan Ringkas
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.chip.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _MiniParam(icon: Icons.thermostat_outlined, label: '${req.temperature}°C'),
+                _MiniParam(icon: Icons.cloud_outlined, label: '${req.humidity.toInt()}%'),
+                _MiniParam(icon: Icons.science_outlined, label: '${req.tds.toInt()} PPM'),
+                _MiniParam(icon: Icons.water_drop_outlined, label: 'pH ${req.ph}'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Action Buttons
+          FilledButton.icon(
+            onPressed: onViewHistory,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text('Buka Riwayat Prediksi', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: onDone,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              side: const BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Selesai & Ke Beranda', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniParam extends StatelessWidget {
+  const _MiniParam({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text)),
+      ],
     );
   }
 }

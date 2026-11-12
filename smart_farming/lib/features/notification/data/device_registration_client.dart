@@ -5,9 +5,10 @@ import 'package:http/http.dart' as http;
 
 import '../../../config/api_config.dart';
 import '../../../core/failures.dart';
+import '../../../core/session.dart';
 import '../domain/usecases/notification_route_resolver.dart';
 
-/// Mengirimkan FCM token ke backend Flask (POST /devices).
+/// Mengirimkan FCM token ke backend Laravel (POST /api/devices).
 class DeviceRegistrationClient {
   const DeviceRegistrationClient();
 
@@ -21,6 +22,7 @@ class DeviceRegistrationClient {
             body: jsonEncode({
               'fcm_token': fcmToken,
               'platform': 'android',
+              if (Session.uid != null) 'user_uid': Session.uid,
             }),
           )
           .timeout(const Duration(seconds: 4));

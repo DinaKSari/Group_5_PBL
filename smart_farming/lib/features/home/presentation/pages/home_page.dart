@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../notification/presentation/providers/notification_providers.dart';
+import '../../data/monitoring_service.dart';
+import '../providers/home_providers.dart';
 import '../../../../routes.dart';
 import 'package:smart_farming/core/app_colors.dart';
 
@@ -13,12 +16,27 @@ class ParamData {
   final String value, label, range, tag;
 }
 
-const _params = [
-  ParamData(Icons.water_drop_outlined, '5.2', 'pH Air', '5.8 – 6.5', 'Optimal'),
-  ParamData(Icons.science_outlined, '720', 'Nutrisi PPM', '560 – 840', 'AB Mix'),
-  ParamData(Icons.thermostat_outlined, '23°C', 'Suhu', '20 – 26°C', 'Sejuk'),
-  ParamData(Icons.cloud_outlined, '78%', 'Kelembaban', '70 – 85%', 'Baik'),
-];
+List<ParamData> _paramsFrom(MonitoringData data) {
+  const ranges = {
+    'pH Air': (5.5, 6.5),
+    'Nutrisi PPM': (560.0, 840.0),
+    'Suhu': (20.0, 26.0),
+    'Kelembaban': (70.0, 85.0),
+  };
+
+  String tag(String label, double v) {
+    final (lo, hi) = ranges[label]!;
+    return (v >= lo && v <= hi) ? 'Optimal' : 'Cek';
+  }
+
+  final s = data.sensor;
+  return [
+    ParamData(Icons.water_drop_outlined, s == null ? '--' : s.ph.toStringAsFixed(1), 'pH Air', '5.5 – 6.5', s == null ? '-' : tag('pH Air', s.ph)),
+    ParamData(Icons.science_outlined, s == null ? '--' : s.tds.toStringAsFixed(0), 'Nutrisi PPM', '560 – 840', s == null ? '-' : tag('Nutrisi PPM', s.tds)),
+    ParamData(Icons.thermostat_outlined, s == null ? '--' : '${s.suhu.toStringAsFixed(0)}°C', 'Suhu', '20 – 26°C', s == null ? '-' : tag('Suhu', s.suhu)),
+    ParamData(Icons.cloud_outlined, s == null ? '--' : '${s.kelembapan.toStringAsFixed(0)}%', 'Kelembaban', '70 – 85%', s == null ? '-' : tag('Kelembaban', s.kelembapan)),
+  ];
+}
 
 /// Halaman Home & Dashboard terintegrasi dalam satu file ringkas.
 class HomePage extends ConsumerStatefulWidget {
@@ -38,36 +56,102 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
+  Future<void> _refresh() async {
+    ref.invalidate(monitoringProvider);
+    await ref.read(monitoringProvider.future);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final monitoring = ref.watch(monitoringProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const HeaderTile(),
-          Transform.translate(
-            offset: const Offset(0, -28),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  const BatchTile(),
-                  const SizedBox(height: 14),
-                  PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
-                  const SizedBox(height: 22),
-                  const SectionTile(title: 'PARAMETER KRITIS'),
-                  const SizedBox(height: 12),
-                  const ParamGrid(params: _params),
-                ],
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            const HeaderTile(),
+            Transform.translate(
+              offset: const Offset(0, -28),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    monitoring.maybeWhen(
+                      data: (d) => BatchTile(
+                        daysLeft: d.prediction?.daysLeft ?? 0,
+                        estimate: d.prediction == null ? '-' : _fmtDate(d.prediction!.harvestDate),
+                        currentHst: (d.prediction?.currentHst ?? 0).round(),
+                        totalHst: d.prediction?.totalHst ?? 1,
+                      ),
+                      orElse: () => const BatchTile(daysLeft: 0, estimate: 'Tarik untuk memuat data', currentHst: 0, totalHst: 1),
+                    ),
+                    const SizedBox(height: 14),
+                    PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
+                    const SizedBox(height: 22),
+                    const SectionTile(title: 'PARAMETER KRITIS'),
+                    const SizedBox(height: 4),
+                    _SensorSubtitle(monitoring: monitoring),
+                    const SizedBox(height: 8),
+                    monitoring.when(
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                      ),
+                      error: (e, st) => ParamGrid(params: _paramsFrom(const MonitoringData())),
+                      data: (d) => ParamGrid(params: _paramsFrom(d)),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
+String _fmtDate(DateTime d) {
+  const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
+}
+
+class _SensorSubtitle extends StatelessWidget {
+  const _SensorSubtitle({required this.monitoring});
+  final AsyncValue<MonitoringData> monitoring;
+
+  @override
+  Widget build(BuildContext context) {
+    return monitoring.maybeWhen(
+      data: (d) => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          d.sensor == null
+              ? 'Belum ada data sensor — mulai prediksi pertama Anda'
+              : 'Live dari backend • ${d.sensor!.lokasi} • ${_fmtTime(d.sensor!.updatedAt)}',
+          style: const TextStyle(color: AppColors.muted, fontSize: 11),
+        ),
+      ),
+      error: (e, st) => const Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'Backend tidak terjangkau — menampilkan kosong (mode offline)',
+          style: TextStyle(color: AppColors.warn, fontSize: 11),
+        ),
+      ),
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+String _fmtTime(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 /// Alias agar dashboard dan home menjadi satu kesatuan di file ini
 typedef DashboardPage = HomePage;
@@ -75,7 +159,7 @@ typedef DashboardPage = HomePage;
 class HeaderTile extends ConsumerWidget {
   const HeaderTile({super.key});
 
-  void _confirmLogout(BuildContext context) {
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -94,9 +178,12 @@ class HeaderTile extends ConsumerWidget {
             child: const Text('Batal', style: TextStyle(color: AppColors.muted)),
           ),
           FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.go(AppRoute.login);
+            onPressed: () async {
+              final navigator = Navigator.of(ctx);
+              final router = GoRouter.of(context);
+              navigator.pop();
+              await ref.read(authRepositoryProvider).signOut();
+              router.go(AppRoute.login);
             },
             style: FilledButton.styleFrom(
               backgroundColor: Colors.red,
@@ -163,7 +250,7 @@ class HeaderTile extends ConsumerWidget {
             ),
           ),
           IconButton(
-            onPressed: () => _confirmLogout(context),
+            onPressed: () => _confirmLogout(context, ref),
             tooltip: 'Keluar',
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
