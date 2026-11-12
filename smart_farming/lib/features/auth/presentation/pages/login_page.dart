@@ -58,7 +58,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           children: [
             Text('🥬', style: TextStyle(fontSize: 18)),
             SizedBox(width: 10),
-            Text('Selamat Datang, Petani Selada! Mari pantau panenmu.'),
+            Expanded(child: Text('Selamat Datang, Petani Selada! Mari pantau panenmu.')),
           ],
         ),
         backgroundColor: AppColors.primary,
