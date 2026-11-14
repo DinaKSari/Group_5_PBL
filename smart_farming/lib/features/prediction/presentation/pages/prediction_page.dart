@@ -5,8 +5,10 @@ import '../../../../core/app_colors.dart';
 import '../../../../routes.dart';
 import '../../../history/domain/entities/history_entry.dart';
 import '../../../history/presentation/providers/history_providers.dart';
+import '../../../notification/presentation/providers/notification_providers.dart';
 import '../../domain/entities/parameter_spec.dart';
 import '../../domain/entities/prediction_request.dart';
+import '../../domain/entities/prediction_result.dart';
 import '../providers/prediction_providers.dart';
 
 /// Ikon presentation-only per kunci parameter (domain tidak kenal IconData).
@@ -88,24 +90,46 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
     );
     await ref.read(historyRepositoryProvider).addEntry(entry);
     ref.invalidate(historyProvider);
+
+    // Memicu notifikasi lokal panen ke bilah status HP
+    try {
+      await ref.read(notificationRepositoryProvider).showHarvestNotification(
+        location: _location.text.trim(),
+        daysLeft: result.daysLeft,
+      );
+    } catch (e) {
+      debugPrint('[PrediksiPage] Gagal memicu notifikasi panen: $e');
+    }
+
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Estimasi panen ${_fmtDate(result.harvestDate)} — ${result.daysLeft} hari lagi 🥬',
-        ),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
+    _showResultBottomSheet(result, entry);
+  }
+
+  void _showResultBottomSheet(PredictionResult result, HistoryEntry entry) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PredictionResultBottomSheet(
+        result: result,
+        entry: entry,
+        onViewHistory: () {
+          Navigator.pop(ctx);
+          context.go(AppRoute.riwayat);
+        },
+        onDone: () {
+          Navigator.pop(ctx);
+          context.go(AppRoute.home);
+        },
       ),
     );
-    context.go(AppRoute.home);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           const FormHeaderTile(title: 'Form Prediksi Panen', subtitle: 'Input kondisi terkini selada'),
@@ -184,25 +208,37 @@ class PlantingInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Info Penanaman', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(
+              'Info Penanaman',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.text,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
             const SizedBox(height: 2),
             const Text('Untuk catatan riwayat', style: TextStyle(color: AppColors.muted, fontSize: 12)),
             const SizedBox(height: 14),
             TextFormField(
               controller: location,
               textInputAction: TextInputAction.done,
+              style: TextStyle(color: isDark ? Colors.white : AppColors.text),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Lokasi tanam wajib diisi' : null,
               decoration: InputDecoration(
                 labelText: 'Lokasi Tanam',
@@ -229,7 +265,7 @@ class PlantingInfoTile extends StatelessWidget {
                     border: border,
                     enabledBorder: border,
                   ),
-                  child: Text(_fmtDate(d), style: const TextStyle(color: AppColors.text, fontSize: 15)),
+                  child: Text(_fmtDate(d), style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontSize: 15)),
                 ),
               ),
             ),
@@ -250,11 +286,12 @@ class NumberFieldTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -267,15 +304,33 @@ class NumberFieldTile extends StatelessWidget {
                 children: [
                   Icon(icon, size: 20, color: AppColors.accent),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(spec.label, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 14))),
+                  Expanded(
+                    child: Text(
+                      spec.label,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.text,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                   _Stepper(icon: Icons.remove, onTap: v > spec.min ? () => _set(v - spec.step) : null),
                   SizedBox(
                     width: 92,
                     child: Text.rich(
                       TextSpan(
                         text: v.toStringAsFixed(spec.decimals),
-                        style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.w800),
-                        children: [TextSpan(text: ' ${spec.unit}', style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w500))],
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: ' ${spec.unit}',
+                            style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ],
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -284,7 +339,12 @@ class NumberFieldTile extends StatelessWidget {
                 ],
               ),
               SliderTheme(
-                data: SliderTheme.of(context).copyWith(trackHeight: 4, activeTrackColor: AppColors.accent, inactiveTrackColor: AppColors.chip, thumbColor: AppColors.primary),
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  activeTrackColor: AppColors.accent,
+                  inactiveTrackColor: isDark ? const Color(0xFF2C3930) : AppColors.chip,
+                  thumbColor: AppColors.primary,
+                ),
                 child: Slider(value: v, min: spec.min, max: spec.max, onChanged: _set),
               ),
               Padding(
@@ -328,8 +388,12 @@ class SubmitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF162119) : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border)),
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -348,6 +412,325 @@ class SubmitBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Modal BottomSheet interaktif untuk menampilkan kartu hasil prediksi multi-task:
+/// 1. Estimasi sisa hari & tanggal panen (Regresi)
+/// 2. Fase pertumbuhan tanaman (Klasifikasi)
+/// 3. Profil mikroklimat & rekomendasi nutrisi (Klusterisasi)
+class PredictionResultBottomSheet extends StatelessWidget {
+  const PredictionResultBottomSheet({
+    super.key,
+    required this.result,
+    required this.entry,
+    required this.onViewHistory,
+    required this.onDone,
+  });
+
+  final PredictionResult result;
+  final HistoryEntry entry;
+  final VoidCallback onViewHistory;
+  final VoidCallback onDone;
+
+  Color _getStageColor(String stage) {
+    if (stage.contains('Semai')) return Colors.blue.shade700;
+    if (stage.contains('Vegetatif')) return AppColors.primary;
+    return Colors.amber.shade800;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final stageColor = _getStageColor(result.growthStage);
+    final req = entry.parameters;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF334637) : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF223527) : AppColors.chip,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hasil Prediksi Panen',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppColors.text,
+                      ),
+                    ),
+                    Text(
+                      entry.location,
+                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded, color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Main Card Hero (Regresi Hari Panen)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF14472C), AppColors.accent],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          result.isReady ? 'SIAP DIPANEN! 🥬' : 'ESTIMASI SISA WAKTU',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 11,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '${result.daysLeft}',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Hari Lagi',
+                              style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Target Tanggal',
+                            style: TextStyle(fontSize: 11, color: Colors.white70),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _fmtDate(result.harvestDate),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Fase Pertumbuhan (Klasifikasi) & Kluster Lingkungan
+          Row(
+            children: [
+              // Badge Klasifikasi Fase
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.category_outlined, size: 16, color: stageColor),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Fase Tanaman',
+                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        result.growthStage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: stageColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Badge Kluster Lingkungan
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.bubble_chart_outlined, size: 16, color: AppColors.primary),
+                          SizedBox(width: 6),
+                          Text(
+                            'Profil Lingkungan',
+                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        result.clusterDesc,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.text),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Parameter Lingkungan Ringkas
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.chip.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _MiniParam(icon: Icons.thermostat_outlined, label: '${req.temperature}°C'),
+                _MiniParam(icon: Icons.cloud_outlined, label: '${req.humidity.toInt()}%'),
+                _MiniParam(icon: Icons.science_outlined, label: '${req.tds.toInt()} PPM'),
+                _MiniParam(icon: Icons.water_drop_outlined, label: 'pH ${req.ph}'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Action Buttons
+          FilledButton.icon(
+            onPressed: onViewHistory,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text('Buka Riwayat Prediksi', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: onDone,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              side: const BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Selesai & Ke Beranda', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniParam extends StatelessWidget {
+  const _MiniParam({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text)),
+      ],
     );
   }
 }

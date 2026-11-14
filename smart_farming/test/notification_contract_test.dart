@@ -38,6 +38,12 @@ class FakeNotificationRepository implements NotificationRepository {
   Future<({String? token, Failure? failure})> currentOrFreshToken() async {
     return (token: lastRegisteredToken ?? 'fake-token-1234567890', failure: null);
   }
+
+  @override
+  Future<void> showHarvestNotification({
+    required String location,
+    required int daysLeft,
+  }) async {}
 }
 
 void main() {

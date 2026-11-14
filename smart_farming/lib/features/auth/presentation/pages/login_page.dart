@@ -14,8 +14,8 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'petani@smartfarming.id');
-  final _passwordController = TextEditingController(text: 'selada2026');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = true;
   bool _isLoading = false;
@@ -58,7 +58,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           children: [
             Text('🥬', style: TextStyle(fontSize: 18)),
             SizedBox(width: 10),
-            Text('Selamat Datang, Petani Selada! Mari pantau panenmu.'),
+            Expanded(child: Text('Selamat Datang, Petani Selada! Mari pantau panenmu.')),
           ],
         ),
         backgroundColor: AppColors.primary,
@@ -70,13 +70,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     context.go(AppRoute.home);
   }
 
-  void _handleQuickDemoLogin() {
-    _emailController.text = 'petani@smartfarming.id';
-    _passwordController.text = 'selada2026';
-    _handleLogin();
-  }
-
   void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(text: _emailController.text);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -88,21 +83,47 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             Text('Lupa Kata Sandi?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
-        content: const Text(
-          'Untuk versi demo PBL ini, Anda dapat langsung masuk dengan kredensial default:\n\n'
-          '📧 Email: petani@smartfarming.id\n'
-          '🔑 Sandi: selada2026\n\n'
-          'Atau gunakan tombol "Masuk Cepat Mode Demo".',
-          style: TextStyle(fontSize: 14, height: 1.5),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Masukkan email akunmu. Kami kirim tautan reset password dari Firebase.',
+              style: TextStyle(fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+          ],
         ),
         actions: [
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final repo = ref.read(authRepositoryProvider);
+              Navigator.pop(ctx);
+              final outcome = await repo.sendPasswordReset(emailController.text);
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(outcome.sent
+                      ? 'Cek email ${emailController.text} untuk tautan reset.'
+                      : 'Gagal mengirim reset: ${outcome.failure?.message ?? 'tidak diketahui'}'),
+                  backgroundColor: outcome.sent ? AppColors.primary : Colors.red.shade700,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.darkBtn,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
-            child: const Text('Mengerti'),
+            child: const Text('Kirim Tautan Reset'),
           ),
         ],
       ),
@@ -319,16 +340,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                             const SizedBox(height: 12),
 
-                            // Quick Demo Button
-                            OutlinedButton.icon(
-                              onPressed: _isLoading ? null : _handleQuickDemoLogin,
-                              icon: const Icon(Icons.flash_on_rounded, size: 16, color: AppColors.warn),
-                              label: const Text('Masuk Cepat Mode Demo'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.text,
-                                side: const BorderSide(color: AppColors.border),
-                                minimumSize: const Size.fromHeight(46),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                            // Link ke halaman registrasi
+                            Center(
+                              child: TextButton(
+                                onPressed: () => context.go(AppRoute.register),
+                                child: const Text.rich(
+                                  TextSpan(
+                                    text: 'Belum punya akun? ',
+                                    style: TextStyle(color: AppColors.muted, fontSize: 13),
+                                    children: [
+                                      TextSpan(
+                                        text: 'Daftar Sekarang',
+                                        style: TextStyle(
+                                          color: AppColors.accent,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ],

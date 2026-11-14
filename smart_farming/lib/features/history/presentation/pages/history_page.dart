@@ -43,7 +43,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           const HistoryHeader(),
@@ -126,17 +126,19 @@ class SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       onChanged: onChanged,
+      style: TextStyle(color: isDark ? Colors.white : AppColors.text),
       decoration: InputDecoration(
         hintText: 'Cari lokasi atau tanggal...',
         hintStyle: const TextStyle(color: AppColors.muted, fontSize: 14),
         prefixIcon: const Icon(Icons.search_rounded, color: AppColors.muted),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: isDark ? const Color(0xFF1D2620) : Colors.white,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.accent)),
       ),
     );
@@ -152,6 +154,7 @@ class FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         for (final e in _labels.entries) ...[
@@ -161,9 +164,13 @@ class FilterRow extends StatelessWidget {
             onSelected: (_) => onSelected(e.key),
             showCheckmark: false,
             selectedColor: AppColors.primary,
-            backgroundColor: Colors.white,
-            labelStyle: TextStyle(color: selected == e.key ? Colors.white : AppColors.text, fontSize: 13, fontWeight: FontWeight.w600),
-            side: const BorderSide(color: AppColors.border),
+            backgroundColor: isDark ? const Color(0xFF1D2620) : Colors.white,
+            labelStyle: TextStyle(
+              color: selected == e.key ? Colors.white : (isDark ? Colors.white70 : AppColors.text),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            side: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border),
           ),
           const SizedBox(width: 8),
         ],
@@ -178,13 +185,17 @@ class HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final p = item.parameters;
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: Colors.white,
+      color: isDark ? const Color(0xFF1D2620) : Colors.white,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+      ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -197,7 +208,7 @@ class HistoryTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.location, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(item.location, style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
                     const SizedBox(height: 6),
                     Row(
                       children: [

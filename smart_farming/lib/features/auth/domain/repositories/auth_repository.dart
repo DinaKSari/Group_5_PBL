@@ -7,4 +7,19 @@ abstract class AuthRepository {
     required String email,
     required String password,
   });
+
+  Future<({bool registered, Failure? failure})> signUp({
+    required String email,
+    required String password,
+  });
+
+  Future<void> signOut();
+
+  Future<({bool sent, Failure? failure})> sendPasswordReset(String email);
+
+  Future<({bool updated, Failure? failure})> updateDisplayName(String name);
+
+  Future<({bool updated, Failure? failure})> updatePassword(String newPassword);
+
+  String? get currentUserId;
 }
