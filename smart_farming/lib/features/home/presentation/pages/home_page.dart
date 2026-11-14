@@ -66,7 +66,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final monitoring = ref.watch(monitoringProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -159,43 +159,6 @@ typedef DashboardPage = HomePage;
 class HeaderTile extends ConsumerWidget {
   const HeaderTile({super.key});
 
-  void _confirmLogout(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.logout_rounded, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Keluar Akun', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: const Text('Apakah Anda yakin ingin keluar ke halaman login?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: AppColors.muted)),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final navigator = Navigator.of(ctx);
-              final router = GoRouter.of(context);
-              navigator.pop();
-              await ref.read(authRepositoryProvider).signOut();
-              router.go(AppRoute.login);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Keluar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _copyDebugToken(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final result = await ref.read(notificationRepositoryProvider).currentOrFreshToken();
@@ -250,14 +213,14 @@ class HeaderTile extends ConsumerWidget {
             ),
           ),
           IconButton(
-            onPressed: () => _confirmLogout(context, ref),
-            tooltip: 'Keluar',
+            onPressed: () {}, // Dikosongkan sementara untuk pembetulan lonceng berikutnya
+            tooltip: 'Notifikasi',
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: Colors.red,
+              foregroundColor: AppColors.primary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            icon: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
+            icon: const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 22),
           ),
         ],
       ),
@@ -279,11 +242,12 @@ class BatchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
       margin: EdgeInsets.zero,
       elevation: 3,
       shadowColor: Colors.black26,
-      color: Colors.white,
+      color: isDark ? const Color(0xFF1D2620) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -296,13 +260,13 @@ class BatchTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text('$daysLeft', style: const TextStyle(color: AppColors.primary, fontSize: 48, fontWeight: FontWeight.w800, height: 1)),
+                Text('$daysLeft', style: TextStyle(color: isDark ? const Color(0xFF4ADE80) : AppColors.primary, fontSize: 48, fontWeight: FontWeight.w800, height: 1)),
                 const SizedBox(width: 8),
                 const Text('Hari Lagi', style: TextStyle(color: AppColors.accent, fontSize: 18, fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Menuju Panen', style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.w700)),
+            Text('Menuju Panen', style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -318,7 +282,7 @@ class BatchTile extends StatelessWidget {
                 value: currentHst / totalHst,
                 minHeight: 7,
                 color: AppColors.accent,
-                backgroundColor: const Color(0xFFE6EAE7),
+                backgroundColor: isDark ? const Color(0xFF2C3930) : const Color(0xFFE6EAE7),
               ),
             ),
             const SizedBox(height: 6),
@@ -342,8 +306,9 @@ class PredictionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: const Color(0xFFDDF0E4),
+      color: isDark ? const Color(0xFF1C2E22) : const Color(0xFFDDF0E4),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
@@ -356,9 +321,9 @@ class PredictionTile extends StatelessWidget {
             child: Icon(Icons.monitor_heart_outlined, color: Colors.white),
           ),
         ),
-        title: const Text('Mulai Prediksi Baru', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
+        title: Text('Mulai Prediksi Baru', style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
         subtitle: const Text('Input parameter tinggi, pH, dan PPM selada', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text),
+        trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white70 : AppColors.text),
       ),
     );
   }
@@ -370,11 +335,12 @@ class SectionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
         title,
-        style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1),
+        style: TextStyle(color: isDark ? Colors.white70 : AppColors.text, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1),
       ),
     );
   }
@@ -408,11 +374,12 @@ class ParamTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -427,10 +394,10 @@ class ParamTile extends StatelessWidget {
               ],
             ),
             const Spacer(),
-            Text(data.value, style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.w800)),
+            Text(data.value, style: TextStyle(color: isDark ? const Color(0xFF4ADE80) : AppColors.primary, fontSize: 24, fontWeight: FontWeight.w800)),
             Text(data.label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
             const SizedBox(height: 2),
-            Text(data.range, style: const TextStyle(color: Color(0xFFB0B8B3), fontSize: 11)),
+            Text(data.range, style: TextStyle(color: isDark ? Colors.white38 : const Color(0xFFB0B8B3), fontSize: 11)),
           ],
         ),
       ),
@@ -444,11 +411,22 @@ class ChipTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
-      decoration: BoxDecoration(color: AppColors.chip, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF26392D) : AppColors.chip,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(label, style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

@@ -49,5 +49,17 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<({bool updated, Failure? failure})> updateDisplayName(String name) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return (updated: true, failure: null);
+  }
+
+  @override
+  Future<({bool updated, Failure? failure})> updatePassword(String newPassword) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return (updated: true, failure: null);
+  }
+
+  @override
   String? get currentUserId => Session.uid;
 }

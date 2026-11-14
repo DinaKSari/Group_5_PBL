@@ -74,6 +74,39 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<({bool updated, Failure? failure})> updateDisplayName(String name) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.updateDisplayName(name.trim());
+        await user.reload();
+        return (updated: true, failure: null);
+      }
+      return (updated: false, failure: const AuthFailure('Pengguna tidak ditemukan.'));
+    } on FirebaseAuthException catch (e) {
+      return (updated: false, failure: AuthFailure(_pesan(e)));
+    } catch (e) {
+      return (updated: false, failure: AuthFailure('Gagal memperbarui nama: $e'));
+    }
+  }
+
+  @override
+  Future<({bool updated, Failure? failure})> updatePassword(String newPassword) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.updatePassword(newPassword);
+        return (updated: true, failure: null);
+      }
+      return (updated: false, failure: const AuthFailure('Pengguna tidak ditemukan.'));
+    } on FirebaseAuthException catch (e) {
+      return (updated: false, failure: AuthFailure(_pesan(e)));
+    } catch (e) {
+      return (updated: false, failure: AuthFailure('Gagal memperbarui kata sandi: $e'));
+    }
+  }
+
+  @override
   String? get currentUserId =>
       Session.uid ?? FirebaseAuth.instance.currentUser?.uid;
 }

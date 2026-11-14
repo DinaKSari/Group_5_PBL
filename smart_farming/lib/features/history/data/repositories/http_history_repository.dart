@@ -30,7 +30,7 @@ class HttpHistoryRepository implements HistoryRepository {
       final client = _client ?? http.Client();
       final response = await client
           .get(url, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 3));
 
       if (response.statusCode != 200) {
         return (items: <HistoryEntry>[], failure: ServerFailure('Status ${response.statusCode}'));
@@ -66,6 +66,7 @@ class HttpHistoryRepository implements HistoryRepository {
 
   @override
   Future<({bool saved, Failure? failure})> addEntry(HistoryEntry entry) async {
+    await InMemoryHistoryRepository.instance.addEntry(entry);
     return (saved: true, failure: null);
   }
 }

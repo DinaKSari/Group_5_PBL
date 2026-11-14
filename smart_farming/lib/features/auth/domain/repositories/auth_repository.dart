@@ -17,5 +17,9 @@ abstract class AuthRepository {
 
   Future<({bool sent, Failure? failure})> sendPasswordReset(String email);
 
+  Future<({bool updated, Failure? failure})> updateDisplayName(String name);
+
+  Future<({bool updated, Failure? failure})> updatePassword(String newPassword);
+
   String? get currentUserId;
 }

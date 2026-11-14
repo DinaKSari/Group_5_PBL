@@ -42,7 +42,7 @@ class HttpPredictionRepository implements PredictionRepository {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 3));
 
       // Laravel membalas 201 (store sukses); Flask lama membalas 200.
       if (response.statusCode == 200 || response.statusCode == 201) {

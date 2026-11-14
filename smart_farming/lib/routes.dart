@@ -7,6 +7,7 @@ import 'features/history/presentation/pages/history_page.dart';
 import 'features/home/presentation/pages/home_page.dart';
 import 'features/onboarding/presentation/pages/splash_page.dart';
 import 'features/prediction/presentation/pages/prediction_page.dart';
+import 'features/profile/presentation/pages/profile_page.dart';
 
 abstract final class AppRoutes {
   static const splash = '/splash';
@@ -16,6 +17,7 @@ abstract final class AppRoutes {
   static const dashboard = '/dashboard';
   static const prediksi = '/prediksi';
   static const riwayat = '/riwayat';
+  static const profile = '/profile';
 
   /// Rute default yang dituju saat notifikasi tidak menyertakan rute spesifik
   static const defaultRoute = riwayat;
@@ -74,6 +76,14 @@ final appRouter = GoRouter(
             ),
           ],
         ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: AppRoutes.profile,
+              builder: (context, state) => const ProfilePage(),
+            ),
+          ],
+        ),
       ],
     ),
   ],
@@ -86,11 +96,13 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: shell,
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFE3F1E8),
+        backgroundColor: isDark ? const Color(0xFF162119) : Colors.white,
+        indicatorColor: isDark ? const Color(0xFF243B2C) : const Color(0xFFE3F1E8),
         selectedIndex: shell.currentIndex,
         // Tap tab aktif -> kembali ke root cabang tersebut.
         onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
@@ -108,6 +120,11 @@ class MainShell extends StatelessWidget {
           NavigationDestination(
             icon: Icon(Icons.history_rounded),
             label: 'Riwayat',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Profil',
           ),
         ],
       ),

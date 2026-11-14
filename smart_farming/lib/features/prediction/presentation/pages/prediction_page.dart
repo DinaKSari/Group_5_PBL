@@ -5,6 +5,7 @@ import '../../../../core/app_colors.dart';
 import '../../../../routes.dart';
 import '../../../history/domain/entities/history_entry.dart';
 import '../../../history/presentation/providers/history_providers.dart';
+import '../../../notification/presentation/providers/notification_providers.dart';
 import '../../domain/entities/parameter_spec.dart';
 import '../../domain/entities/prediction_request.dart';
 import '../../domain/entities/prediction_result.dart';
@@ -89,6 +90,17 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
     );
     await ref.read(historyRepositoryProvider).addEntry(entry);
     ref.invalidate(historyProvider);
+
+    // Memicu notifikasi lokal panen ke bilah status HP
+    try {
+      await ref.read(notificationRepositoryProvider).showHarvestNotification(
+        location: _location.text.trim(),
+        daysLeft: result.daysLeft,
+      );
+    } catch (e) {
+      debugPrint('[PrediksiPage] Gagal memicu notifikasi panen: $e');
+    }
+
     if (!mounted) return;
 
     _showResultBottomSheet(result, entry);
@@ -117,7 +129,7 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           const FormHeaderTile(title: 'Form Prediksi Panen', subtitle: 'Input kondisi terkini selada'),
@@ -196,25 +208,37 @@ class PlantingInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Info Penanaman', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(
+              'Info Penanaman',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.text,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
             const SizedBox(height: 2),
             const Text('Untuk catatan riwayat', style: TextStyle(color: AppColors.muted, fontSize: 12)),
             const SizedBox(height: 14),
             TextFormField(
               controller: location,
               textInputAction: TextInputAction.done,
+              style: TextStyle(color: isDark ? Colors.white : AppColors.text),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Lokasi tanam wajib diisi' : null,
               decoration: InputDecoration(
                 labelText: 'Lokasi Tanam',
@@ -241,7 +265,7 @@ class PlantingInfoTile extends StatelessWidget {
                     border: border,
                     enabledBorder: border,
                   ),
-                  child: Text(_fmtDate(d), style: const TextStyle(color: AppColors.text, fontSize: 15)),
+                  child: Text(_fmtDate(d), style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontSize: 15)),
                 ),
               ),
             ),
@@ -262,11 +286,12 @@ class NumberFieldTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -279,15 +304,33 @@ class NumberFieldTile extends StatelessWidget {
                 children: [
                   Icon(icon, size: 20, color: AppColors.accent),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(spec.label, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 14))),
+                  Expanded(
+                    child: Text(
+                      spec.label,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.text,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                   _Stepper(icon: Icons.remove, onTap: v > spec.min ? () => _set(v - spec.step) : null),
                   SizedBox(
                     width: 92,
                     child: Text.rich(
                       TextSpan(
                         text: v.toStringAsFixed(spec.decimals),
-                        style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.w800),
-                        children: [TextSpan(text: ' ${spec.unit}', style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w500))],
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: ' ${spec.unit}',
+                            style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ],
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -296,7 +339,12 @@ class NumberFieldTile extends StatelessWidget {
                 ],
               ),
               SliderTheme(
-                data: SliderTheme.of(context).copyWith(trackHeight: 4, activeTrackColor: AppColors.accent, inactiveTrackColor: AppColors.chip, thumbColor: AppColors.primary),
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  activeTrackColor: AppColors.accent,
+                  inactiveTrackColor: isDark ? const Color(0xFF2C3930) : AppColors.chip,
+                  thumbColor: AppColors.primary,
+                ),
                 child: Slider(value: v, min: spec.min, max: spec.max, onChanged: _set),
               ),
               Padding(
@@ -340,8 +388,12 @@ class SubmitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF162119) : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border)),
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -390,13 +442,14 @@ class PredictionResultBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final stageColor = _getStageColor(result.growthStage);
     final req = entry.parameters;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1D2620) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 20),
       child: Column(
@@ -409,7 +462,7 @@ class PredictionResultBottomSheet extends StatelessWidget {
               width: 44,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: isDark ? const Color(0xFF334637) : Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -422,7 +475,7 @@ class PredictionResultBottomSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.chip,
+                  color: isDark ? const Color(0xFF223527) : AppColors.chip,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
@@ -432,9 +485,13 @@ class PredictionResultBottomSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Hasil Prediksi Panen',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppColors.text,
+                      ),
                     ),
                     Text(
                       entry.location,
