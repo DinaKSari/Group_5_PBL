@@ -30,14 +30,14 @@
     ]
   },
   "selected_model": "XGBRegressor",
-  "dataset_source": "sample",
-  "n_rows": 1200,
+  "dataset_source": "csv",
+  "n_rows": 3150,
   "metrics": [
     {
       "model": "XGBRegressor",
-      "MAE": 1.347,
-      "RMSE": 1.717,
-      "R2": 0.961
+      "MAE": 0.589,
+      "RMSE": 0.955,
+      "R2": 0.995
     }
   ]
 }

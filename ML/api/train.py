@@ -4,9 +4,10 @@ Training pipeline untuk model estimasi hari menuju panen selada.
 Alur: dataset -> split -> latih dan evaluasi XGBoost -> latih ulang dengan seluruh data
 -> simpan model ke artifacts/model.joblib.
 
-Jika data/lettuce.csv tidak tersedia, dibuat dataset SAMPLE (deterministik) supaya
-pipeline bisa jalan end-to-end. Ganti dengan dataset Kaggle final (jurijsruko/lettuce)
-dengan kolom: umur_hst, suhu, kelembapan, tds, ph, days_left.
+Dataset Lettuce Growth Days menggunakan kolom Plant_ID, Temperature (°C),
+Humidity (%), TDS Value (ppm), pH Level, dan Growth Days. Label days_left
+dihitung sebagai hari terakhir per tanaman dikurangi Growth Days saat ini.
+Jika CSV tidak tersedia, pipeline memakai dataset SAMPLE deterministik.
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from xgboost import XGBRegressor
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -39,12 +40,40 @@ RANGES = {
 
 def load_dataset() -> tuple[pd.DataFrame, str]:
     if DATA_CSV.exists():
-        df = pd.read_csv(DATA_CSV)
-        missing = [c for c in FEATURES + [TARGET] if c not in df.columns]
+        try:
+            df = pd.read_csv(DATA_CSV, encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            df = pd.read_csv(DATA_CSV, encoding="latin1")
+
+        df.columns = df.columns.str.strip()
+        source_columns = {
+            "Plant_ID": "_group_id",
+            "Growth Days": "umur_hst",
+            "Temperature (°C)": "suhu",
+            "Humidity (%)": "kelembapan",
+            "TDS Value (ppm)": "tds",
+            "pH Level": "ph",
+        }
+        missing = [c for c in source_columns if c not in df.columns]
         if missing:
-            raise SystemExit(f"data/lettuce.csv kurang kolom: {missing}")
-        return df[FEATURES + [TARGET]].dropna().reset_index(drop=True), "csv"
-    return build_sample(), "sample"
+            available = ", ".join(map(str, df.columns))
+            raise SystemExit(
+                "Kolom wajib data/lettuce.csv tidak ditemukan. "
+                f"Kolom yang kurang: {missing}. Kolom tersedia: {available}."
+            )
+        data = df[list(source_columns)].rename(columns=source_columns)
+        for column in data.columns:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+        data = data.dropna().reset_index(drop=True)
+        data[TARGET] = data.groupby("_group_id")["umur_hst"].transform("max") - data["umur_hst"]
+        data = data[data["umur_hst"].between(*RANGES["umur_hst"])].reset_index(drop=True)
+        if data.empty:
+            raise SystemExit("Tidak ada baris CSV valid dalam rentang umur_hst 1-45.")
+        return data, "csv"
+
+    sample = build_sample()
+    sample["_group_id"] = np.arange(len(sample))
+    return sample, "sample"
 
 
 def build_sample(n: int = 1200, seed: int = 42) -> pd.DataFrame:
@@ -89,8 +118,12 @@ def evaluate(name: str, y_true, y_pred) -> dict:
 
 def main() -> None:
     df, source = load_dataset()
-    X, y = df[FEATURES], df[TARGET]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X, y, groups = df[FEATURES], df[TARGET], df["_group_id"]
+    train_idx, test_idx = next(
+        GroupShuffleSplit(test_size=0.2, n_splits=1, random_state=42).split(X, y, groups)
+    )
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
     model = XGBRegressor(
         objective="reg:squarederror",

@@ -19,7 +19,9 @@ Jika PowerShell menolak aktivasi virtual environment, jalankan `Set-ExecutionPol
 python ML/api/train.py
 ```
 
-Model dan metadatanya disimpan ke `ML/api/artifacts/model.joblib` dan `ML/api/artifacts/features.json`. Jika `ML/api/data/lettuce.csv` belum tersedia, script menggunakan dataset sample deterministik. Untuk memakai dataset sendiri, letakkan file tersebut dan pastikan memiliki kolom `umur_hst`, `suhu`, `kelembapan`, `tds`, `ph`, dan `days_left`.
+Model dan metadatanya disimpan ke `ML/api/artifacts/model.joblib` dan `ML/api/artifacts/features.json`. Jika `ML/api/data/lettuce.csv` belum tersedia, script menggunakan dataset sample deterministik.
+
+CSV Lettuce Growth Days yang digunakan memiliki kolom `Plant_ID`, `Temperature (°C)`, `Humidity (%)`, `TDS Value (ppm)`, `pH Level`, dan `Growth Days`. Script memetakan kolom sensor ke fitur model dan menghitung `days_left` sebagai hari Growth Days maksimum per tanaman dikurangi Growth Days saat ini. Dengan demikian, label mengasumsikan catatan terakhir tiap tanaman adalah akhir siklus/panen. Evaluasi memisahkan data berdasarkan `Plant_ID` agar baris dari tanaman yang sama tidak bocor ke data uji.
 
 ## 3. Jalankan API prediksi
 
