@@ -41,6 +41,20 @@ Task berjalan sebagai **SYSTEM saat boot** (tanpa ada yang login) dan mengulang 
 kalau gagal. Karena SYSTEM tidak punya `%LOCALAPPDATA%` milik kalian, `install-autostart.ps1`
 menulis path `ngrok.yml` kalian ke `deploy\tunnel.config.json` (file itu tidak masuk git).
 
+**Status: terpasang & teruji 2026-11-16.** Proxy uji tanpa reboot: `-Stop` lalu
+`Start-ScheduledTask` → Flask/Laravel/ngrok hidup lagi dalam ±12 detik (`logs\autostart.log`).
+
+Konsekuensi yang harus diketahui sejak task ini aktif:
+- Layanan bukan lagi milik terminal kalian (Session 0 / SYSTEM). `start_tunnel.ps1 -Stop` dari
+  PowerShell biasa **gagal** (`taskkill ... could not be terminated`), dan penjaga akan
+  menyalakan ulang dalam ≤60 detik. Yang benar: PowerShell *Run as administrator* →
+  `Disable-ScheduledTask -TaskName 'LettuGrow Tunnel'` lalu `.\start_tunnel.ps1 -Stop`.
+  Bongkar permanen: `uninstall-autostart.ps1` (elevated juga).
+- Laptop ini menjadi server publik setiap kali menyala — termasuk saat kalian lupa
+  menyalakannya untuk demo. `APP_DEBUG=false` dipaksa, Flask hanya bind `127.0.0.1`,
+  dan seluruh endpoint API menolak request tanpa idToken.
+
+
 ## Kalau autofinder salah tebak
 
 Salin `tunnel.config.example.json` → `tunnel.config.json`, lalu isi path absolut

@@ -88,22 +88,38 @@ Keputusan, bukan perintah terminal. Kirim jawabannya dalam satu pesan:
       `.\deploy\start_tunnel.ps1`; `-Status` melihat tanpa mengubah apa pun, `-Stop` matikan
       Laravel/Flask/ngrok (MySQL dibiarkan), `-NoNgrok` lokal saja.
       ⚠️ Ini status **sekarang**, bukan permanen: tunnel mati begitu laptop mati atau ngrok
-      keluar, dan `deploy\windows-autostart\install-autostart.ps1` **belum** kalian
-      jalankan (butuh UAC), jadi belum ada jaminan pulih sendiri setelah boot.
-- [ ] 7. Autostart setelah boot (butuh Administrator sekali — tidak bisa saya kerjakan):
+      keluar — pemulihan otomatis baru ada sejak item 7 di bawah terpasang (2026-11-16).
+- [x] 7. **Autostart TerPASANG & teruji tanpa reboot (2026-11-16)** — task `LettuGrow Tunnel`
+      terdaftar (SYSTEM, trigger `AtStartup`, restart 3× tiap 2 menit, tanpa batas waktu).
+      Buktinya: rangkaian dimatikan (`-Stop`), lalu `Start-ScheduledTask` → dalam log
+      `deploy\logs\autostart.log` tercatat `tunnel tidak aktif -> memanggil start_tunnel.ps1`
+      dan 12 detik kemudian Flask 5000 + Laravel 8000 + ngrok 4040 hidup lagi dengan URL publik
+      yang sama; `GET /up` dari internet = 200.
+      ⚠️ Yang berubah untuk kalian: layanan sekarang jalan di **Session 0 milik SYSTEM**, jadi
+      `.\start_tunnel.ps1 -Stop` dari terminal VS Code biasa **tidak bisa** matikan
+      (`taskkill ... could not be terminated`). Cara berhenti yang benar:
+      PowerShell *Run as administrator* → `Disable-ScheduledTask -TaskName 'LettuGrow Tunnel'`
+      lalu `.\start_tunnel.ps1 -Stop`. Bongkar total: `uninstall-autostart.ps1` (juga elevated).
+      ⚠️ Dan konsekuensi yang harus kalian sadari: sejak sekarang, **siapa pun yang menyalakan
+      laptop ini ikut menyalakan server publik**. `APP_DEBUG=false` sudah paksa dan tidak ada
+      data user terbaca tanpa idToken, tapi password admin Filament (R10) masih harus diganti.
 
   ```powershell
+  # pasang (butuh UAC sekali):
   powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows-autostart\install-autostart.ps1
-  # uji TANPA reboot (ini yang menggantikan keberanian menyalakan ulang laptop):
+  # cek / uji tanpa reboot (elevated):
+  Get-ScheduledTask -TaskName 'LettuGrow Tunnel' | Format-List TaskName,State
   Start-ScheduledTask -TaskName 'LettuGrow Tunnel'
   Get-Content deploy\logs\autostart.log -Tail 20
   # bongkar:
   powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows-autostart\uninstall-autostart.ps1
   ```
 
-  Detail & alasan tiap langkah ada di `deploy\README.md`. Kalau autofinder salah menebak path
-  binaries, salin `deploy\tunnel.config.example.json` → `deploy\tunnel.config.json` lalu isi
-  path-nya (file itu di-gitignore).
+  Kalau autofinder salah menebak path binaries, salin `deploy\tunnel.config.example.json`
+  → `deploy\tunnel.config.json` lalu isi path-nya (file itu di-gitignore). Installer sudah
+  menulis `ngrok.yml` kalian ke sana otomatis, karena SYSTEM tidak punya `%LOCALAPPDATA%`
+  milik user — itu yang membuat ngrok tetap autentik walau task berjalan tanpa login.
+
 
 
 **Kuota free plan yang membatasi jumlah user** (dari dokumen resmi ngrok, 2026-11-16):
@@ -268,12 +284,11 @@ Laporkan hasilnya apa adanya. Kalau gagal, tulis "GAGAL + gejala" — itu lebih 
 | 12 | APK rilis = HTTPS saja | Pasang `app-release.apk`, matikan `adb reverse` | login/prediksi jalan lewat ngrok; tidak ada kegagalan cleartext HTTP | `[ ]` |
 | 13 | Nama app | Lihat launcher + *Tentang* | tertulis **LettuGrow** (`applicationId` `com.lettgrow.app`) | `[ ]` |
 
-Catatan: tes #3 sengaja tidak saya eksekusi — me-restart laptop mematikan sesi kerja kita dan
-menguji autostart dengan cara itu berisiko pada pekerjaan kalian yang belum ter-commit.
-Sejak `e44db28` jalur itu sudah ada `deploy\windows-autostart\install-autostart.ps1`, jadi #3 bisa
-diproksikan **tanpa reboot**: `Start-ScheduledTask -TaskName 'LettuGrow Tunnel'` lalu cek
-`deploy\logs\autostart.log` — urutan MySQL → Flask → Laravel → ngrok harus muncul. Baru setelah itu
-#3 diuji sungguhan saat laptop memang perlu dinyalakan ulang.
+Catatan tes #3: **proxy-nya sudah dijalankan 2026-11-16 dan lulus** — task autostart aktif,
+rangkaian dimatikan lalu `Start-ScheduledTask` menyalakan semuanya kembali dalam 12 detik
+(`deploy\logs\autostart.log`). Yang tersisa di baris ini hanya pembuktiannya saat laptop memang
+perlu dinyalakan ulang: me-restart laptop demi tes akan mematikan sesi kerja kalian, jadi itu
+keputusan manusia, bukan tugas saya.
 
 ---
 
@@ -291,14 +306,19 @@ Saya tidak melakukan ini tanpa kalian bilang ya, karena tidak aman dibatalkan:
 - [x] Menjalankan migrasi MySQL yang mengubah data di DB lokal — selesai 2026-11-16
       (`php artisan migrate --force` + `tool/migrate_sqlite_to_mysql.php --apply`).
       `mysqldump` dan salinan SQLite-nya diambil **sebelum** menulis apa pun.
-- [ ] Menghentikan proses yang sedang berjalan (php / mysql / redis / ngrok) — sejak ada
+- [x] Menghentikan proses yang sedang berjalan (php / mysql / redis / ngrok) — sejak ada
       `deploy\start_tunnel.ps1` ini tidak lagi saya lakukan sendiri; kalian yang menjalankan
       `-Stop` / `-Stop -MySql`, dan **tidak ada** `taskkill` liar (PID dicatat di
       `deploy\logs\pids\`, MySQL dihentikan rapi). Yang sudah terjadi hanya menghentikan web
       server probe milik saya sendiri.
-- [ ] Mendaftarkan task autostart tingkat sistem (`install-autostart.ps1` → prompt UAC) —
-      hak Administrator milik kalian, dan task yang berjalan sebagai SYSTEM menyentuh mesin
-      di luar repo. Bongkar-pasangnya lewat `uninstall-autostart.ps1`.
+- [x] **Mendaftarkan task Scheduler tingkat SYSTEM yang menyala saat boot** (2026-11-16, atas
+      permintaan kalian: `install-autostart.ps1` + `Start-ScheduledTask` + `-Stop` untuk uji).
+      Ini mengubah mesin di luar repo: dua kali prompt UAC kalian accept, layanan kini di-start
+      sebagai SYSTEM di Session 0, dan laptop otomatis jadi server publik setiap kali menyala.
+      Bongkar: `uninstall-autostart.ps1` (elevated). Satu bug nyata ikut ditemukan & diperbaiki:
+      `New-ScheduledTaskAction -Argument` di mesin ini menolak array, jadi rangkaian argumen
+      sekarang satu string (`deploy/windows-autostart/install-autostart.ps1:79`).
+
 - [ ] Menulis file baru ke repo: `LICENSE`, `CHANGELOG.md`, `PRIVACY_POLICY.md`,
       `docs/DEPLOYMENT.md`, `docs/USER_MANUAL.md`. (`docs/PLAN.md` & runbook ini sudah ada.)
 

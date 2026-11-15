@@ -309,8 +309,11 @@ terpasang dan berfungsi di device nyata lewat 4G.
       `deploy/start_tunnel.ps1`; probe `GET /api/sensor/latest` membalas JSON 401, bukan stack trace
 - [ ] APK release ditandatangani keystore sendiri (R5 = kalian), `usesCleartextTraffic` **sudah**
       pindah ke `src/debug/` (`79eb092`) sehingga rilis hanya HTTPS
-- [ ] Restart laptop → layanan pulih tanpa perintah manual — task autostart terdaftar
-      (`e44db28`), uji proxy `Start-ScheduledTask` belum dijalankan, reboot sungguhan sengaja tidak
+- [ ] Restart laptop → layanan pulih tanpa perintah manual — task `LettuGrow Tunnel` **sudah
+      terdaftar & lulus uji proxy** 2026-11-16 (rangkaian dimatikan, `Start-ScheduledTask`
+      menghidupkan Flask+Laravel+ngrok lagi dalam 12 detik, `/up` publik 200). Centang terakhir
+      ini tetap milik reboot sungguhan karena itu satu-satunya kondisi yang belum tersimulasi
+      (DNS belum siap saat boot, service Laragon belum bind, dll.)
 - [ ] Server mati → app menampilkan "server offline", bukan layar kosong (RUNBOOK R7 #2)
 - [ ] CI hijau di 3 stack; `LICENSE` + `PRIVACY_POLICY.md` tersedia
 - [ ] Ada jalur nyata bagi user untuk menghapus akun & datanya
@@ -542,6 +545,33 @@ Tidak ada balasan yang memuat `exception`/`file`/`trace`; Flask sendiri membalas
 `-Status` dan `-Stop` teruji idempoten di atas Laragon yang sudah jalan.
 
 Artinya laptop ini **sedang terbuka ke internet** lewat URL itu — dengan `APP_DEBUG=false`,
-tidak ada data user yang terbaca tanpa idToken, dan Flask terkunci di localhost. Yang masih
-belum: task autostart belum terdaftar (RUNBOOK R2 item 7, butuh UAC kalian) sehingga layanan
-mati bersama laptop, dan kuota 20.000 request/bulan mulai terpakai nyata.
+tidak ada data user yang terbaca tanpa idToken, dan Flask terkunci di localhost. Kuota
+20.000 request/bulan mulai terpakai nyata, dan sejak task autostart terpasang (lihat di bawah)
+server publik ikut hidup setiap kali laptop menyala — tidak ada lagi "laptop mati = aman".
+
+**Autostart SYSTEM terpasang & lulus uji proxy (2026-11-16, RUNBOOK R2 item 7)**
+
+`install-autostart.ps1` didaftarkan (2× UAC kalian accept) → task `LettuGrow Tunnel`,
+principal `SYSTEM`/ServiceAccount/RunLevel Highest, trigger `AtStartup`, retry 3× @2 menit,
+`ExecutionTimeLimit` tak terbatas. Uji tanpa reboot: `start_tunnel.ps1 -Stop` (Flask/Laravel/ngrok
+mati, MySQL sengaja dibiarkan karena dipakai Laragon) → `Start-ScheduledTask` →
+`autostart.log` mencatat `tunnel tidak aktif -> memanggil start_tunnel.ps1` dan **12 detik**
+kemudian 5000/8000/4040 hidup kembali dengan URL publik yang sama; `GET /up` = 200,
+`GET /api/sensor/latest` = 401 JSON.
+
+Tiga temuan yang wajib kalian tahu:
+1. **Bug installer diperbaiki di commit ini**: `New-ScheduledTaskAction -Argument` menolak array
+   pada build modul TaskScheduler mesin ini (`ParameterArgumentTransformationError`), kini satu
+   string dengan path berquotes (repo path mengandung spasi).
+2. Layanan kini milik **Session 0 / SYSTEM**, jadi `start_tunnel.ps1 -Stop` dari terminal biasa
+   gagal (`taskkill ... could not be terminated`) — dan penjaga akan menyalakannya lagi dalam
+   ≤60 detik. Cara berhenti yang benar: PowerShell *Run as administrator* →
+   `Disable-ScheduledTask -TaskName 'LettuGrow Tunnel'` → `.\start_tunnel.ps1 -Stop`.
+3. `install-autostart.ps1` menulis path `ngrok.yml` milik user ke `deploy/tunnel.config.json`
+   (di-gitignore) karena SYSTEM tidak punya `%LOCALAPPDATA%` kalian — itu sebabnya tunnel tetap
+   autentik tanpa ada yang login.
+
+Sisa yang benar-benar masih menunggu manusia: reboot sungguhan (hanya membuktikan hal yang sama
+di kondisi boot nyata), R4 publish Remote Config, R5 keystore, R6 UptimeRobot + backup, R7
+13 uji di HP, dan R10 rotasi — terutama `ADMIN_PASSWORD`, karena sekarang panel admin ikut
+terbawa hidup setiap kali laptop menyala.

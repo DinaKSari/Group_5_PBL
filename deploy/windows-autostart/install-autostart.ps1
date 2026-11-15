@@ -76,9 +76,12 @@ if (Test-Path -LiteralPath $ngrokYml) {
 
 # ------------------------------------------------------------------------ daftar
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument @(
-    '-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`""
-) -WorkingDirectory $autostartDir
+# -Argument di beberapa build TaskScheduler module hanya menerima satu string
+# (array -> ParameterArgumentTransformationError), jadi rangkai manual.
+# Path runner mengandung spasi -> wajib diberi kutip di dalam string itu sendiri.
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+    -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $runner) `
+    -WorkingDirectory $autostartDir
 
 $trigger = New-ScheduledTaskTrigger -AtStartup
 
