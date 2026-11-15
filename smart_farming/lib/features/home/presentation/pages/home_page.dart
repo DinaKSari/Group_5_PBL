@@ -7,6 +7,8 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../notification/presentation/providers/notification_providers.dart';
 import '../../data/monitoring_service.dart';
 import '../providers/home_providers.dart';
+import '../../../../config/app_version.dart';
+import '../../../../core/remote_settings.dart';
 import '../../../../routes.dart';
 import 'package:smart_farming/core/app_colors.dart';
 
@@ -91,6 +93,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(height: 14),
                     PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
+                    const VersionNoticeBanner(),
                     const SizedBox(height: 22),
                     const SectionTile(title: 'PARAMETER KRITIS'),
                     const SizedBox(height: 4),
@@ -396,6 +399,48 @@ class PredictionTile extends StatelessWidget {
         title: const Text('Mulai Prediksi Baru', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
         subtitle: const Text('Input parameter tinggi, pH, dan PPM selada', style: TextStyle(color: AppColors.muted, fontSize: 12)),
         trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text),
+      ),
+    );
+  }
+}
+
+/// Peringatan versi APK tertinggal dari `minimum_supported_version` Remote Config.
+///
+/// Sengaja TANPA tombol tutup dan TANPA memblokir UI: distribusi APK di luar
+/// Play Store berarti tidak ada jalur upgrade paksa, jadi satu nilai Remote
+/// Config yang salah tidak boleh membuat aplikasi tidak bisa dipakai — hanya
+/// memberi tahu.
+class VersionNoticeBanner extends StatelessWidget {
+  const VersionNoticeBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!RemoteSettings.isOutdated(appVersion)) return const SizedBox.shrink();
+    final minimum = RemoteSettings.minimumSupportedVersion;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFFB74D)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.system_update_outlined, size: 20, color: Color(0xFF9A5B00)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Versi aplikasi ini ($appVersion) lebih lama dari versi minimum $minimum. '
+                'Ambil APK terbaru dari pengelola LettuGrow supaya data tetap cocok dengan server.',
+                style: const TextStyle(color: Color(0xFF6E4300), fontSize: 12, height: 1.4),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

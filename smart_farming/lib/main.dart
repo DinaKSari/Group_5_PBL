@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/remote_settings.dart';
 import 'core/session.dart';
 import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
@@ -20,6 +21,12 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Base URL + batas versi dibaca dari Remote Config SEKALI saat start, dengan
+  // batas waktu pendek. Gagal/tidak ter-set pun app tetap jalan memakai nilai
+  // build (ApiConfig.buildDefault / dart-define), jadi langkah R4 di Console
+  // tidak bisa membuat aplikasi tidak bisa dibuka.
+  await loadRemoteSettings();
 
   // Sumber kebenaran sesi: kejadian pertama = pemulihan user yang tersimpan
   // Firebase, selanjutnya login/logout. Router & layer data hanya membaca
@@ -65,8 +72,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Hemat kuota ngrok: hanya tarik ulang saat kembali ke foreground, bukan
-    // dengan polling.
-    if (state == AppLifecycleState.resumed) {
+    // dengan polling. Tamu ditahan karena revalidasi provider untuk sesi tanpa
+    // akun hanya membakar request tanpa bisa menampilkan data apa pun.
+    if (state == AppLifecycleState.resumed && Session.hasAccount) {
       ref.invalidate(monitoringProvider);
     }
   }
