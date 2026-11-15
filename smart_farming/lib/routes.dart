@@ -44,14 +44,22 @@ final _privateLocations = {
   AppRoutes.sensor,
 };
 
+/// Mode Tamu boleh melihat tiga tab (read-only, ditolak di layer data), tapi
+/// tidak boleh mencatat parameter kebun: tanpa akun tidak ada pemilik baris.
+const _guestLocations = {AppRoutes.home, AppRoutes.prediksi, AppRoutes.riwayat};
+
+/// Murni supaya bisa diuji tanpa widget/Firebase.
+String? redirectLocationFor(String location) {
+  if (!_privateLocations.contains(location)) return null;
+  if (Session.hasAccount) return null;
+  if (Session.isGuest && _guestLocations.contains(location)) return null;
+  return AppRoutes.splash;
+}
+
 final appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
   refreshListenable: Listenable.merge([authStateNotifier, sessionExpiredNotifier]),
-  redirect: (context, state) {
-    final location = state.matchedLocation;
-    if (!_privateLocations.contains(location)) return null;
-    return Session.hasAccount ? null : AppRoutes.splash;
-  },
+  redirect: (context, state) => redirectLocationFor(state.matchedLocation),
   routes: [
     GoRoute(
       path: '/',

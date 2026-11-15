@@ -9,6 +9,7 @@ import '../../data/monitoring_service.dart';
 import '../providers/home_providers.dart';
 import '../../../../config/app_version.dart';
 import '../../../../core/remote_settings.dart';
+import '../../../../core/session.dart';
 import '../../../../routes.dart';
 import 'package:smart_farming/core/app_colors.dart';
 
@@ -94,7 +95,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     const SizedBox(height: 14),
                     PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
                     const SizedBox(height: 10),
-                    SensorEntryTile(onTap: () => context.push(AppRoute.sensor)),
+                    SensorEntryTile(onTap: () => openSensorEntry(context)),
                     const VersionNoticeBanner(),
                     const SizedBox(height: 22),
                     const SectionTile(title: 'PARAMETER KRITIS'),
@@ -185,7 +186,7 @@ class _SensorSubtitle extends StatelessWidget {
           ),
           if (d.sensor == null)
             TextButton(
-              onPressed: () => context.push(AppRoute.sensor),
+              onPressed: () => openSensorEntry(context),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
@@ -460,6 +461,17 @@ class VersionNoticeBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Pintu tunggal ke pencatatan manual. Mode Tamu tidak punya pemilik baris,
+/// jadi diberi pesan alih-alih dilempar guard router kembali ke splash.
+void openSensorEntry(BuildContext context) {
+  if (Session.isGuest) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Masuk untuk mencatat parameter kebun kalian.')));
+    return;
+  }
+  context.push(AppRoute.sensor);
 }
 
 /// Pintu ke pencatatan parameter manual (keputusan P4: belum ada sensor IoT).
