@@ -1,0 +1,30 @@
+# Artefak lokal & cache — tidak pernah masuk repo.
+# (Detail per-subfolder ada di smart_farming/.gitignore dan smart_farming/backend/.gitignore.)
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Build Android yang lolos ke root repo (lihat juga smart_farming/android/.gitignore)
+smart_farming/android/build/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+Desktop.ini
+
+# Kredensial & file lokal — ganda dengan .gitignore per folder, ditulis di sini
+# supaya tidak ada jalur lain yang tidak sengaja menampungi file rahasia.
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+key.properties
+-service-account.json
+*firebase-adminsdk*.json
