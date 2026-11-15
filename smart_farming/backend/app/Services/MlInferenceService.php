@@ -19,11 +19,21 @@ class MlInferenceService
     {
         $url = rtrim((string) config('services.flask.url'), '/').'/predict';
         $timeout = (int) config('services.flask.timeout', 8);
+        $secret = (string) config('services.flask.secret', '');
 
         try {
-            $response = Http::timeout($timeout)->asJson()->post($url, $features);
+            $response = Http::timeout($timeout)
+                ->withHeaders(['X-ML-Token' => $secret])
+                ->asJson()
+                ->post($url, $features);
         } catch (ConnectionException $e) {
             throw new HttpException(503, 'Layanan prediksi ML tidak dapat dihubungi.');
+        }
+
+        if ($response->status() === 401) {
+            throw new HttpException(503,
+                'Microservice ML menolak permintaan: FLASK_ML_SHARED_SECRET (Laravel) dan '.
+                'ML_SHARED_SECRET (Flask) tidak sama.');
         }
 
         if ($response->status() === 503) {

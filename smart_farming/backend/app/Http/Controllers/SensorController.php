@@ -20,12 +20,12 @@ class SensorController extends Controller
             'tds' => ['required', 'numeric', 'between:200,1500'],
             'ph' => ['required', 'numeric', 'between:4,9'],
             'lokasi' => ['nullable', 'string', 'max:120'],
-            'user_uid' => ['nullable', 'string', 'max:128'],
-            'source' => ['nullable', 'string', 'in:manual,iot,simulasi'],
+            'source' => ['nullable', 'string', 'in:manual,simulasi'],
         ]);
 
         $reading = SensorReading::create([
             ...$data,
+            'user_uid' => $request->attributes->get('firebase_identity')->uid,
             'lokasi' => $data['lokasi'] ?? 'Kebun',
             'source' => $data['source'] ?? 'manual',
         ]);
@@ -34,12 +34,13 @@ class SensorController extends Controller
     }
 
     /**
-     * Pembacaan terbaru untuk dashboard monitoring.
+     * Pembacaan terbaru untuk dashboard monitoring — selalu difilter ke user
+     * yang terautentikasi; tidak ada mode "ambil terbaru secara global".
      */
     public function latest(Request $request): JsonResponse
     {
         $reading = SensorReading::query()
-            ->when($request->query('user_uid'), fn ($q, $uid) => $q->where('user_uid', $uid))
+            ->where('user_uid', $request->attributes->get('firebase_identity')->uid)
             ->latest()
             ->first();
 
