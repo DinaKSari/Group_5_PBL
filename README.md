@@ -157,7 +157,7 @@ Sistem Machine Learning pada proyek ini mengintegrasikan tiga pilar pemodelan un
 
 1. **Regresi**: Memperkirakan jumlah hari menuju panen (`days_left`) berdasarkan parameter lingkungan dan umur tanaman.
 2. **Klasifikasi**: Mengklasifikasikan fase pertumbuhan / kesiapan panen tanaman (*Semai*, *Vegetatif*, *Siap Panen*).
-3. **Klusterisasi (Clustering)**: Mengelompokkan profil mikroklimat & nutrisi tanaman hidroponik ke dalam 3 zona kondisi lingkungan menggunakan algoritma K-Means.
+3. **Klusterisasi (Clustering)**: Menyegmen profil mikroklimat tanaman hidroponik menjadi 2 zona (Sejuk / Hangat) menggunakan `StandardScaler` + K-Means.
 
 ### Dataset
 
@@ -193,11 +193,11 @@ Preprocessing & Feature Engineering
 Train/Test Split (80:20)
    ↓
 Multi-Task Training:
-   ├── 1. Regresi (LinearRegression vs RandomForestRegressor)
-   ├── 2. Klasifikasi (KNN vs SVM vs Naive Bayes vs RandomForest)
-   └── 3. Klusterisasi (K-Means k=3 pada fitur mikroklimat)
+   ├── 1. Regresi (LinearRegression vs RandomForest vs XGBoost)
+   ├── 2. Klasifikasi (KNN vs SVM vs Naive Bayes vs RandomForest vs XGBoost)
+   └── 3. Klusterisasi (StandardScaler + K-Means, k dipilih silhouette → k=2)
    ↓
-Evaluasi & Validasi Model
+Evaluasi & Validasi Model (baseline, CV-F1, confusion matrix, ROC-AUC, elbow+silhouette)
    ↓
 Export Artefak Model (model.joblib, classifier.joblib, cluster.joblib)
    ↓
@@ -208,43 +208,67 @@ Flutter Mobile App (Smart Farming)
 
 ### Model & Hasil Evaluasi
 
-#### 1. Pemodelan Regresi (Estimasi Hari Panen)
-* **Model Baseline**: `LinearRegression`
-* **Model Pembanding**: `RandomForestRegressor`
-* **Metrik Evaluasi**: MAE, RMSE, dan $R^2$
+> **Catatan metodologis (penting, dibaca jujur).** Label klasifikasi fase
+> `stage_class` adalah **fungsi deterministik** dari `umur_hst` (≤14 → Semai,
+> 15–35 → Vegetatif, >35 → Siap Panen), sementara `umur_hst` juga menjadi fitur
+> input. Akibatnya tugas klasifikasi **separable sempurna** — akurasi ~1.0 pada
+> Naive Bayes / Random Forest / XGBoost **bukan "penemuan" model**, melainkan
+> konsekuensi definisi label. Nilai tambah ML proyek ini terletak pada **regresi**
+> (estimasi `days_left`) dan **klusterisasi** mikroklimat. Untuk membuktikan hal
+> ini, pipeline menyertakan **baseline** (prediksi kelas mayoritas), **cross-validation
+> stratified 5-fold**, **confusion matrix**, **ROC-AUC (OvR)**, dan varian
+> **ENV-ONLY** (klasifikasi tanpa umur). Seluruh metrik tersimpan di
+> `ML/api/artifacts/features.json`; figur di `ML/reports/`.
 
-| Model | MAE | RMSE | $R^2$ |
-| --- | --- | --- | --- |
-| **Linear Regression** | 0.285 | 0.507 | 0.999 |
-| **Random Forest Regressor** | 0.307 | 0.587 | 0.998 |
+#### 1. Pemodelan Regresi (Estimasi Hari Panen) — *model inti*
+* **Kandidat**: `LinearRegression`, `RandomForestRegressor`, `XGBoost`.
+* **Metrik**: MAE, RMSE, $R^2$ (test split 80:20) + waktu latih & inferensi.
 
-*Model terbaik: Linear Regression / Random Forest Regressor disimpan ke `artifacts/model.joblib`.*
-
-#### 2. Pemodelan Klasifikasi (Fase Kesiapan Panen)
-* **Kelas Target**:
-  * `0`: Semai / Nursery (1–14 HST)
-  * `1`: Vegetatif / Pembesaran (15–35 HST)
-  * `2`: Siap Panen / Mature (> 35 HST)
-* **Model Pembanding**: K-Nearest Neighbors (KNN), Support Vector Machine (SVM), Gaussian Naive Bayes, dan Random Forest.
-* **Metrik Evaluasi**: Akurasi, Precision (macro), Recall (macro), F1-Score (macro).
-
-| Model | Akurasi | Precision (macro) | Recall (macro) | F1-Score (macro) |
+| Model | MAE | RMSE | $R^2$ | Inferensi (ms/sampel) |
 | --- | --- | --- | --- | --- |
-| **KNN** | 0.9458 | 0.9466 | 0.9474 | 0.9470 |
-| **SVM** | 0.6862 | 0.5354 | 0.5606 | 0.5219 |
-| **Naive Bayes** | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
-| **Random Forest** | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| **Linear Regression** *(terpilih)* | 0.285 | 0.507 | 0.999 | 0.005 |
+| **Random Forest Regressor** | 0.307 | 0.587 | 0.998 | 0.055 |
+| **XGBoost** | 0.328 | 0.552 | 0.998 | 0.014 |
 
-*Model klasifikasi disimpan ke `artifacts/classifier.joblib`.*
+*Model terbaik (RMSE minimum) = Linear Regression, disimpan ke `artifacts/model.joblib`.
+Regresi inilah yang menghasilkan estimasi "X hari lagi" di aplikasi.*
+
+#### 2. Pemodelan Klasifikasi (Fase Kesiapan Panen) — *degeneratif, lihat catatan*
+* **Kelas target**: `0` Semai (1–14 HST), `1` Vegetatif (15–35 HST), `2` Siap Panen (>35 HST).
+* **Kandidat**: KNN, SVM, Gaussian Naive Bayes, Random Forest, XGBoost.
+* **Metrik**: Akurasi, F1 (macro), CV-F1 (5-fold), ROC-AUC (OvR).
+
+| Model | Akurasi | F1 (macro) | CV-F1 (5-fold) | ROC-AUC (OvR) |
+| --- | --- | --- | --- | --- |
+| KNN | 0.9458 | 0.9470 | 0.9109 ± 0.008 | 0.9899 |
+| SVM | 0.6862 | 0.5219 | 0.5002 ± 0.012 | 0.9979 |
+| Naive Bayes | 1.0000 | 1.0000 | 0.9987 ± 0.001 | 1.0000 |
+| Random Forest | 1.0000 | 1.0000 | 0.9994 ± 0.001 | 1.0000 |
+| **XGBoost** *(terpilih by CV-F1)* | 1.0000 | 1.0000 | 1.0000 ± 0.000 | 1.0000 |
+
+* **Baseline (kelas mayoritas)**: akurasi **0.4831**.
+* **ENV-ONLY (tanpa `umur_hst`)**: akurasi **0.6479** — kontras jujur: tanpa umur,
+  lingkungan saja hampir tidak bisa memisahkan fase (mendekati baseline),
+  menegaskan bahwa ~1.0 berasal dari kebocoran label-umur, bukan sinyal lingkungan.
+* **Confusion matrix** (XGBoost, baris=aktual): diagonal `[132, 214, 97]`, nol error.
+* Model terpilih disimpan ke `artifacts/classifier.joblib` (dipakai hanya sebagai
+  pelabelan fase; keputusan panen sesungguhnya dari regresi `days_left`).
 
 #### 3. Pemodelan Klusterisasi (Profil Mikroklimat Lingkungan)
-* **Algoritma**: K-Means Clustering ($k=3$) pada parameter lingkungan (`suhu`, `kelembapan`, `tds`, `ph`).
-* **Metrik Evaluasi**: Silhouette Score = **0.5663**.
-* **Segmentasi Cluster**:
-  * `Cluster 0`: Kondisi Pertumbuhan Normal (Suhu rata-rata 27.4°C, TDS 593 ppm).
-  * `Cluster 1`: Kondisi Nutrisi Rendah / Sejuk (Suhu rata-rata 26.9°C, TDS 464 ppm).
-  * `Cluster 2`: Kondisi Nutrisi Pekat / Tinggi (Suhu rata-rata 26.9°C, TDS 733 ppm).
-* *Model klusterisasi disimpan ke `artifacts/cluster.joblib`.*
+* **Algoritma**: `StandardScaler` → `KMeans`. Penskalaan wajib karena rentang TDS
+  (300–1400) mendominasi jarak Euclidean terhadap pH (4,5–8,5); tanpa scaling,
+  kluster terpecah hanya menurut nutrisi dan kehilangan makna mikroklimat.
+* **Pemilihan k**: silhouette merata rendah (0,20–0,25 untuk semua k) → mikroklimat
+  bersifat **kontinu**, bukan grup diskret ketat. Agar tetap interpretabel, k
+  dibatasi rentang 2–4 dan dipilih silhouette maksimum → **k = 2** (silhouette **0,235**).
+* **Segmentasi (relatif terhadap rata-rata global: suhu 27,1 °C, TDS 599 ppm)**:
+  * `Cluster 0` — **Hangat (transpirasi tinggi)**: suhu ~31,1 °C, n = 1.295.
+  * `Cluster 1` — **Sejuk**: suhu ~21,4 °C, n = 918.
+* Kurva elbow+silhouette lengkap tersimpan di `ML/reports/elbow_silhouette.png`;
+  model (pipeline scaler+KMeans) disimpan ke `artifacts/cluster.joblib`.
+
+**Figur evaluasi** (dihasilkan `python ML/api/train.py`): `ML/reports/confusion_matrix.png`,
+`roc_auc.png`, `elbow_silhouette.png`, `feature_importance.png`.
 
 ---
 
@@ -734,6 +758,32 @@ Semester 5 — Tahun Akademik 2026/2027.
 
 ---
 
+# 🚀 Cara Menjalankan (Deployment)
+
+Sistem berjalan sebagai **3 layanan** di jaringan lokal yang sama (laptop + perangkat Android/emu):
+
+| Layanan  | Perintah (dari folder)         | Alamat                   |
+| -------- | ------------------------------ | ------------------------ |
+| ML Flask | `python ML/api/app.py`         | `http://<ip>:5000` (`/predict`, `/health`) |
+| Laravel  | `php artisan serve --host=0.0.0.0 --port=8000` (di `backend/`) | `http://<ip>:8000/api` + admin `/admin` |
+| Flutter  | `flutter run` / `flutter build apk --release` (di `smart_farming/`) | aplikasi di perangkat |
+
+**Jalan pintas satu perintah**: jalankan `run_all.bat` di root repo. Skrip ini
+membangkitkan Flask (5000) & Laravel (0.0.0.0:8000) pada terminal terpisah,
+melakukan health-check dengan `curl`, mencetak IPv4 LAN, lalu (mode `flutter`/`apk`)
+menjalikan aplikasi. Mode: `run_all.bat flutter` | `apk` | `none`.
+
+> `smart_farming/lib/config/api_config.dart` mengarahkan `baseUrl` ke `10.0.2.2:8000`
+> (emulator). Untuk perangkat fisik, ubah ke IPv4 LAN laptop (mis. `192.168.1.x`)
+> dan pastikan `AndroidManifest.xml` mengizinkan cleartext HTTP — keduanya khusus
+> pengujian lokal.
+
+**Panel Admin (Filament)**: buka `http://<ip>:8000/admin` → login
+`admin@gmail.com` / `12345678`. Menu: Predictions (kolom **Petani** menampilkan
+identitas penginput via tabel `app_users`), Sensor Readings, Activity Logs.
+
+---
+
 # 📌 Status Project
 
 | Komponen               | Status                                                    |
@@ -744,13 +794,15 @@ Semester 5 — Tahun Akademik 2026/2027.
 | Dataset                | 🟢 Tersedia (`ML/data/lettuce_dataset_training.csv`)      |
 | EDA                    | 🟢 Selesai (`ML/model_ml_pbl_group5.ipynb`)               |
 | Preprocessing          | 🟢 Selesai                                                |
-| Machine Learning Model | 🟢 Selesai (Regresi + Klasifikasi + Klusterisasi)         |
+| Machine Learning Model | 🟢 Selesai (Regresi + Klasifikasi + Klusterisasi, evaluasi jujur) |
 | Flask REST API         | 🟢 Selesai & Teruji (`/predict`, `/health`, `/devices`)   |
 | Flutter Application    | 🟢 Register/Login Firebase Auth, monitoring & riwayat dari backend |
-| Database               | 🟢 Laravel + SQLite (`predictions`, `sensor_readings`, `activity_logs`) |
-| Integration            | 🟢 End-to-end Flutter → Laravel → Flask → ML teruji (smoke test)  |
+| Laravel Admin Panel    | 🟢 Filament (`/admin`): kelola prediksi, sensor, log, kolom Petani (identitas Tier-3 `app_users`) |
+| Database               | 🟢 Laravel + SQLite (`predictions`, `sensor_readings`, `app_users`, `activity_logs`) |
+| Integration            | 🟢 End-to-end Flutter → Laravel → Flask → ML teruji (device + smoke test)  |
+| Release / Deployment   | 🟢 APK `--release` terpasang di perangkat; `run_all.bat` 1-perintah (Flask+Laravel) |
 | Testing                | 🟢 QA Plan & Backend Unit Testing (`test_app.py`) Selesai |
-| Documentation          | 🟢 Sinkron & Lengkap                                      |
+| Documentation          | 🟢 README disinkronkan (temuan ML jujur) + screenshot + RTM |
 
 ---
 

@@ -83,17 +83,40 @@ lib/
 
 ## Cara Menjalankan
 
-```bash
+Satu perintah untuk demo di perangkat lewat USB:
+
+```powershell
 cd smart_farming
-flutter pub get
-flutter analyze   # wajib: No issues found
-flutter test      # wajib: hijau
-flutter run       # target Android (emulator: backend Flask di 10.0.2.2:5000)
+powershell -ExecutionPolicy Bypass -File tool/run_android.ps1 -StartBackend
+```
+
+Skrip ini (`tool/run_android.ps1`):
+
+1. memeriksa Flask ML (5000) dan Laravel API (8000); `-StartBackend` menyalakan yang mati
+   di jendela terminal baru, `-CheckOnly` hanya memeriksa tanpa launch;
+2. memasang `adb reverse tcp:8000 tcp:8000`;
+3. menjalankan `flutter run`.
+
+Karena forwarding ADB, HP mengakses laptop sebagai `127.0.0.1:8000` (default
+`ApiConfig.baseUrl`), jadi koneksi backend tidak bergantung ke IP laptop maupun Wi-Fi —
+tetap jalan di jaringan yang memblokir komunikasi antar perangkat (client isolation) dan
+saat berpindah jaringan. `SERVER_HOST=0.0.0.0` di `backend/.env` membuat Laravel bind ke
+semua interface, sehingga jalur kabel tanpa flag `--host` pun tetap tersedia.
+
+> Halaman prediksi butuh Flask ML menyala. Kalau Flask mati, Laravel membalas 503 dan
+> aplikasi menampilkan "Layanan prediksi ML tidak dapat dihubungi." Aplikasi **tidak**
+> lagi menyamakan kondisi itu dengan data simulasi.
+
+Menjalankan tanpa kabel (HP & laptop harus saling terjangkau; tidak berlaku di Wi-Fi kampus):
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://IP-LAPTOP:8000/api   # perangkat fisik
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api    # emulator Android
 ```
 
 ## Testing (Fase 6)
 
-15 test lulus (`flutter test`):
+22 test lulus (`flutter test`):
 
 | File | Isi |
 | --- | --- |
@@ -101,6 +124,7 @@ flutter run       # target Android (emulator: backend Flask di 10.0.2.2:5000)
 | `test/prediction_test.dart` | FakePredictionRepository sukses/heuristik/failure + contract kolom `toMap` |
 | `test/history_test.dart` | Entity `HistoryEntry` + kontrak repository (add, seed, immutable) |
 | `test/notification_contract_test.dart` | Kontrak notification dengan **fake repository tanpa Firebase** (sukses & NetworkFailure) |
+| `test/prediction_http_test.dart` | Kontrak kegagalan `HttpPredictionRepository`: 503 memakai pesan Laravel, 422 per-field, backend mati/timeout tanpa data palsu, 201 terparse |
 
 ## Status Integrasi Berikutnya
 
