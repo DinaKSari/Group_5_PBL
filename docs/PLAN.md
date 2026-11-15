@@ -127,11 +127,22 @@ Pekerjaan yang masih bisa dipilih:
 | P1 | Commit firmware ESP32 yang sudah ada (kalau memang ada di perangkat/laptop anggota) | 0 | Klaim IoT utuh; butuh buffer retry (keputusan a) di firmware + kredensial device sendiri (lihat catatan route `iot` di §6/M1) |
 | P2 | Tulis skrip pengirim data (Python/PHP command) yang mem-POST `/api/sensor` | ½ hari | Jujur disebut "simulator/emulator perangkat" |
 | P3 | Filament resource SensorReadings → admin bisa melihat/mengoreksi catatan | ½ hari | Tidak mengubah klaim user-facing, hanya operasional |
-| P4 | Entri sensor manual terpisah di app (di luar form prediksi) | ½ hari | Monitoring jadi "pencatatan manual" yang eksplisit |
+| ✅ **P4** | Entri sensor manual terpisah di app (di luar form prediksi) | ½ hari | Monitoring jadi "pencatatan manual" yang eksplisit |
 
-Rekomendasi saya: karena (a) buffer-retry sudah kalian pilih tapi tidak ada kode pengirim,
-jalur termurah adalah **P1 kalau firmware ada; kalau tidak, P2 untuk demo + P3 untuk
-operasional**. Keputusan ini tetap milik kalian karena mengubah klaim bab IoT di laporan.
+**Keputusan 2026-11-16: P4, dan sudah dikerjakan** (`5971303`). Perangkat sensornya memang tidak
+ada, jadi emulator/simulator (P2) sengaja ditolak: angka hasil skrip yang berputar tidak bisa
+dibedakan dari telemetri asli, dan itu membuat klaim laporan lebih lemah daripada kenyataannya.
+Kini ada layar **Catat Parameter Kebun** (`/sensor-entry`) yang mem-POST `/api/sensor` dengan
+kolom `source` = manual, jadi dashboard menampilkan catatan tangan pengguna — bukan lagi
+efek samping form prediksi.
+
+Kalimat siap pakai untuk bab IoT laporan (pakai yang ini, jangan yang lebih kuat):
+
+> Data pada modul monitoring berasal dari **pencatatan manual oleh pengguna** melalui layar
+> Catat Parameter Kebun; proyek ini belum dilengkapi perangkat sensor (ESP32/mikrokontroler)
+> sehingga tidak ada telemetri otomatis. Pipeline ingest (`POST /api/sensor` dengan kolom
+> `source`) sudah tersedia dan siap menerima perangkat nyata di kemudian hari tanpa perubahan
+> skema.
 
 ## 5. M0 — Bersih-bersih repo & dokumen · ½ hari
 
@@ -191,9 +202,9 @@ client (Laravel 29 tes + Flutter 31 tes hijau), mode Tamu read-only ditegakkan d
 |---|---|
 | ✅ Migrasi `DB_CONNECTION=mysql` | **Selesai 2026-11-16** — `smart_farming` (utf8mb4_unicode_ci) jadi DB aktif; schema dibuat lewat `php artisan migrate --force`, lalu 75 baris data lama dipindah utuh (id & timestamp dipertahankan) oleh `tool/migrate_sqlite_to_mysql.php`. Menutup risiko **korupsi data** saat laptop mati tidak bersih. Backup SQLite asli: `backend/storage/app/private/backup-sqlite-2026-11-16.sqlite` (ter-gitignore) |
 | ✅ Pindahkan `SESSION_DRIVER` / `CACHE_STORE` dari `database` | **Selesai 2026-11-16** → `file`. `QUEUE_CONNECTION` sengaja tetap `database` (belum ada consumer; Redis tidak berjalan di laptop ini, dan tabel `jobs` lokal kosong sehingga tidak ada yang tertinggal) |
-| `API_BASE_URL` diambil dari **Firebase Remote Config** | menggantikan `lib/config/api_config.dart:10-12`; bonus: pindah ngrok ↔ VPS tanpa rebuild APK, plus `minimum_supported_version` |
-| nyalakan `ngrok http 8000` → dev domain gratis `https://craftily-handcraft-outboard.ngrok-free.dev` | ⚠️ **Jangan** pakai "Create Domain" — *reserved static domain* itu fitur **berbayar**. Dev domain otomatis & tidak berubah saat restart. Agent harus ≥3.29 (Laragon bawa 3.1.0 → sudah di-update ke 3.39.13) |
-| **Hemat kuota ngrok free (20.000 req/bulan, 1 GB/bulan)** | Endpoint agregat `GET /api/dashboard` (sensor + prediksi terakhir = 1 request, menggantikan 2 request di `monitoring_service.dart:65-66`); provider jangan auto-dispose agar pindah tab tidak fetch ulang; **dilarang** polling `<Timer.periodic>`; tambah header `ngrok-skip-browser-warning` + User-Agent app |
+| ✅ `API_BASE_URL` dari **Firebase Remote Config** | **Selesai 2026-11-16** (`7f4e33b`) — `lib/core/remote_settings.dart` mengisi holder sinkron sekali di `main()` (`fetchAndActivate` + timeout 3 s; gagal = kembali diam-diam ke nilai build). Prioritas: `--dart-define=API_BASE_URL` → `api_base_url` RC → `ApiConfig.buildDefault` (debug `127.0.0.1:8000`, rilis = dev domain ngrok). Bonus `minimum_supported_version` → banner non-dismissible di Home. **Klik Console tetap milik kalian (RUNBOOK R4)**; tanpa itu APK rilis memakai `releaseDefault` |
+| ✅ nyalakan `ngrok http 8000` → dev domain gratis `https://craftily-handcraft-outboard.ngrok-free.dev` — dirangkai `deploy\start_tunnel.bat` (§8, `e44db28`) | ⚠️ **Jangan** pakai "Create Domain" — *reserved static domain* itu fitur **berbayar**. Dev domain otomatis & tidak berubah saat restart. Agent harus ≥3.29 (Laragon bawa 3.1.0 → sudah di-update ke 3.39.13) |
+| **Hemat kuota ngrok free (20.000 req/bulan, 1 GB/bulan)** — sebagian selesai (`APP_DEBUG` dijaga skrip, `POST /sensor` `throttle:30,1`, resume tidak men-refetch untuk mode Tamu, entri parameter = 1 request). **Belum**: Endpoint agregat `GET /api/dashboard` (sensor + prediksi terakhir = 1 request, menggantikan 2 request di `monitoring_service.dart:65-66`); provider jangan auto-dispose agar pindah tab tidak fetch ulang; **dilarang** polling `<Timer.periodic>`; tambah header `ngrok-skip-browser-warning` + User-Agent app |
 | `/up` (Laravel, `bootstrap/app.php:13`) dan `/health` (Flask, `ML/api/app.py:92`) menjadi target health check & monitoring | dipakai M2.5 |
 | ✅ Putuskan `/devices` Flask | **Dihapus 2026-11-16** bersama pengerasan M1.6 — route no-op yang cuma meniru endpoint Laravel (`POST /api/devices` milik app tetap ada di `DeviceController@store`) |
 | Prosedur VPS/nginx/LE **dipindah** ke lampiran `docs/DEPLOYMENT.md` | bukan hilang, hanya ditunda (§9) |
@@ -205,10 +216,10 @@ client (Laravel 29 tes + Flutter 31 tes hijau), mode Tamu read-only ditegakkan d
 | # | Risiko yang ditutup | Pekerjaan |
 |---|---|---|
 | ✅ 2.5.1 | Edge ngrok hidup tapi backend mati → balas **halaman HTML**, app crash di `jsonDecode` | **Selesai 2026-11-16 bersama M1.4**: `ApiClient::jsonBody()` menolak non-JSON; dipakai di monitoring & riwayat; prediksi punya pesan kegagalan sendiri |
-| 2.5.2 | Setelah boot, MySQL/ngrok tidak jalan → `502` padahal tunnel "hijau" | `deploy/windows-autostart/` (Task Scheduler XML): MySQL → web server → ngrok, berurutan + retry + log |
-| 2.5.3 | `artisan serve` single-process & firewall "public network" | Ganti ke nginx/Apache + PHP-CGI Laragon, atau set `PHP_CLI_SERVER_WORKERS` (`.env.example:18` saat ini di-comment); firewall rule; `powercfg` sleep-off |
+| ✅ 2.5.2 | Setelah boot, MySQL/ngrok tidak jalan → `502` padahal tunnel "hijau" | **Selesai 2026-11-16** (`e44db28`): `deploy/start_tunnel.ps1` (MySQL → Flask → Laravel → ngrok berurutan, probe kebocoran stack trace, `-Status`/`-Stop` pakai `taskkill /T`) + `deploy/windows-autostart/install-autostart.ps1` yang mendaftarkan watchdog `AtStartup` (SYSTEM, `StartWhenAvailable`, retry 3×, log ke `deploy/logs/`). Pendaftaran task butuh elevasi = kalian jalankan |
+| ◐ 2.5.3 | `artisan serve` single-process & firewall "public network" | **Sebagian**: `PHP_CLI_SERVER_WORKERS=4` jadi default `.env`/`.env.example`, dan `start_tunnel.ps1` memakai `artisan serve --no-reload` (tanpa flag itu env tersebut diabaikan — `ServeCommand.php:117-123`). **Belum**: nginx/Apache + PHP-CGI, rule firewall, `powercfg` sleep-off |
 | 2.5.4 | User tidak tahu server mati (`home_page.dart:104` tanda hubung) | Health banner via `GET /up` saat app resume → "Server offline, data terakhir pukul X" |
-| 2.5.5 | Reading sensor saat laptop mati **hilang permanen** | Eksekusi keputusan RUNBOOK R1: buffer+retry sisi device, atau tandai gap eksplisit |
+| ✅ 2.5.5 | Reading sensor saat laptop mati **hilang permanen** | **Tutup karena keputusan P4** (§4A): tidak ada perangkat pengirim, jadi tidak ada buffer sisi device yang bisa hilang; pengguna melihat sendiri tulisannya gagal atau berhasil (1 request, pesan jujur). Buffer+retry tetap menjadi syarat kalau kelak firmware nyata di-commit |
 | 2.5.6 | Agent ngrok mati tanpa diketahui | UptimeRobot free ping `/up` tiap 5 menit (RUNBOOK R6) |
 | 2.5.7 | Data kelas tidak ada backupnya | `mysqldump` harian + rotasi, hasil di luar laptop |
 
@@ -217,17 +228,31 @@ dan user melihat status yang benar selama downtime.
 
 ## 9. M3 — Build APK release · 1 hari
 
-- [ ] Keystore release menggantikan `signingConfigs.getByName("debug")`
-      (`android/app/build.gradle.kts:38`) + `key.properties` (RUNBOOK R5).
-- [ ] `isMinifyEnabled` / `isShrinkResources` + proguard rules (belum ada di seluruh tree `android/`).
-- [ ] Samakan `namespace` (`build.gradle.kts:9`) dengan `applicationId` (`:21`), tetapkan `minSdk` (`:24`) final.
-- [ ] **Hapus `usesCleartextTraffic="true"`** (`AndroidManifest.xml:8`) — wajib, transport sudah HTTPS.
-- [ ] `android:label` jadi nama produk (`AndroidManifest.xml:6`), ikon + splash
-      (`flutter_launcher_icons`, `flutter_native_splash` — belum ada di `pubspec.yaml`),
-      `versionName`/`versionCode` + `description` yang masih "A new Flutter project.".
-- [ ] Copot kode demo: `demo_auth_repository.dart` (menerima kredensial apa pun) dan
-      `fake_prediction_repository.dart` beserta simpul DI-nya.
-- [ ] Mekanisme update APK-manual: cek `versionCode` vs Remote Config → prompt unduh APK baru.
+- [x] Keystore release menggantikan `signingConfigs.getByName("debug")` — `79eb092`:
+      `build.gradle.kts` membaca `android/key.properties` (ter-gitignore) dan memakai
+      `signingConfigs.release` hanya kalau isinya ada, fallback debug supaya dev tidak rusak.
+      Pembuatannya `smart_farming/tool/make_keystore.ps1` (RUNBOOK R5).
+- [ ] `isMinifyEnabled` / `isShrinkResources` + proguard rules — **ditunda sadar**: rules R8 untuk
+      firebase_messaging/firebase_remote_config hanya bisa dibuktikan di perangkat, dan build yang
+      gagal diam-diam lebih mahal daripada APK yang sedikit lebih besar (`79eb092`).
+- [x] `applicationId` → `com.lettgrow.app` (entri itu sudah ada di `google-services.json`, dan
+      `gradlew :app:processReleaseGoogleServices` hijau). `namespace` **sengaja tidak diubah**
+      (memindahkan `MainActivity.kt` tanpa bisa mengetes di HP = risiko murni); `minSdk` masih
+      mengikuti `flutter.minSdkVersion` — angka final butuh keputusan dukungan perangkat.
+- [x] **`usesCleartextTraffic="true"` pindah ke `android/app/src/debug/AndroidManifest.xml`** —
+      rilis HTTPS-only, `adb reverse` dev tetap jalan. Diverifikasi dari manifest hasil merge:
+      debug punya atributnya, release tidak, keduanya label LettuGrow + `com.lettgrow.app`.
+- [◐] `android:label` = **LettuGrow** + `description:` pubspec bukan "A new Flutter project."
+      lagi, `web/index.html`/`web/manifest.json` ikut (`79eb092`). **Belum**: ikon & splash produk
+      (`flutter_launcher_icons`/`flutter_native_splash`); `versionName` masih `1.0.0+1`.
+- [x] Kode demo dicabut: `demo_auth_repository.dart` sudah hilang (`5d09de9`), dan
+      `fake_prediction_repository.dart` hanya dipakai `test/prediction_test.dart` — tidak ada
+      simpul DI produksi yang menunjuknya (dikonfirmasi dengan grep).
+- [◐] Mekanisme update APK-manual: `minimum_supported_version` (Remote Config) dibandingkan
+      dengan `--dart-define=APP_VERSION` (diisi `tool/build_release.ps1` dari pubspec) lalu
+      memunculkan **banner non-dismissible** di Home (`7f4e33b`). Sengaja tidak memblokir dan tidak
+      mengunduh otomatis: distribusi di luar Play Store berarti satu nilai RC yang salah akan
+      mem-brick semua user tanpa jalur upgrade.
 
 **DoD**: `flutter build apk --release` dan `appbundle` resign dengan keystore sendiri,
 terpasang dan berfungsi di device nyata lewat 4G.
@@ -256,22 +281,34 @@ terpasang dan berfungsi di device nyata lewat 4G.
       (`php artisan test`), job ML (`pytest ML/api/test_app.py`). CI-lah yang menjaga M1 tidak regresi.
 - [ ] `train.py` menghasilkan artefak yang persis dimuat `app.py:31-34,52-54`; metrik akhir dicatat
       di `ML/README.md`.
-- [ ] Koreksi `README.md:106-107`: klaim "identitas user berasal dari Firebase Auth" menyesatkan
-      karena baris 107 sendiri mengakui `user_uid` dikirim bersama request — baru benar setelah M1
-      selesai (dan kalimatnya harus menyebut validasi token, bukan sekadar pengiriman uid), dan status Release/Deployment 🟢 (`README.md:803`, tabel di blok `README.md:761-806`).
-- [ ] `Documents/QA/RTM_Kelompok5.xlsx` + skenario uji diisi hasil nyata, `Screenshots/` diperbarui
-      ke UI final, kolom bukti test diisi link workflow CI yang hijau.
+- [x] Koreksi `README.md` "Catatan arsitektur final": klaim lama "`user_uid` dikirim bersama
+      request" sudah diganti dengan yang sebenarnya berlaku sejak M1.1 — identitas berasal dari
+      **ID token yang divalidasi server** (middleware `firebase.auth` = `VerifyFirebaseIdToken`).
+      Selesai bersamaan dengan pengisian RTM 2026-11-16. Status Release/Deployment di blok
+      `README.md` masih perlu dicek ulang bersama screenshot & CI (belum bisa saya centang).
+- [x] Sebagian: `Documents/QA/RTM_Kelompok5.xlsx` diisi baris R-22 s.d. R-27 + TC-019 s.d. TC-027
+      di tabel Test Case `README.md` (2026-11-16). **Sisa pekerjaan manusia:** `Screenshots/`
+      diperbarui ke UI final (butuh HP), dan kolom bukti test diisi link workflow CI yang hijau
+      (butuh `ci.yml` di item sebelumnya + push ke remote).
 
 ## 12. Gate — kapan APK boleh didistribusikan
 
-- [ ] **Home menampilkan data sensor nyata** (keputusan §4A sudah dieksekusi, bukan kosong)
+- [ ] **Home menampilkan data sensor dari jalur yang benar** — kodenya selesai (`5971303`:
+      entri manual `/sensor-entry` → `POST /api/sensor` → `invalidate(monitoringProvider)`),
+      lulus di level widget test; **belum** ada centang sampai terlihat di HP (RUNBOOK R7 #8)
 - [ ] Tidak ada endpoint API yang melayani data tanpa idToken (test lintas-user hijau)
-- [ ] Mode Tamu tidak mengembalikan data user lain
-- [ ] Flask menolak request tanpa secret
-- [ ] DB = MySQL, `APP_DEBUG=false` di jalur publik, tidak ada stack trace yang bocor
-- [ ] APK release ditandatangani keystore sendiri, `usesCleartextTraffic` hilang
-- [ ] Restart laptop → layanan pulih tanpa perintah manual
-- [ ] Server mati → app menampilkan "server offline", bukan layar kosong
+      — terverifikasi lokal (`php artisan test`, 29 pass); cek 403 lintas user tetap butuh 2 HP
+- [ ] Mode Tamu tidak mengembalikan data user lain — read-only sejak `bdab2d3`, dan form entri
+      sensor menahan Tamu **sebelum** request keluar (`test/sensor_entry_test.dart`)
+- [ ] Flask menolak request tanpa secret — endpoint internal sejak `4f25acf`; masih perlu dibuktikan
+      lewat URL publik (ngrok aktif + `curl`) karena itu jalur yang kini bisa dijangkau internet
+- [x] DB = MySQL (pindah `ae096d4` + migrasi data teruji) dan `APP_DEBUG=false` dipaksa
+      `deploy/start_tunnel.ps1`; probe `GET /api/sensor/latest` membalas JSON 401, bukan stack trace
+- [ ] APK release ditandatangani keystore sendiri (R5 = kalian), `usesCleartextTraffic` **sudah**
+      pindah ke `src/debug/` (`79eb092`) sehingga rilis hanya HTTPS
+- [ ] Restart laptop → layanan pulih tanpa perintah manual — task autostart terdaftar
+      (`e44db28`), uji proxy `Start-ScheduledTask` belum dijalankan, reboot sungguhan sengaja tidak
+- [ ] Server mati → app menampilkan "server offline", bukan layar kosong (RUNBOOK R7 #2)
 - [ ] CI hijau di 3 stack; `LICENSE` + `PRIVACY_POLICY.md` tersedia
 - [ ] Ada jalur nyata bagi user untuk menghapus akun & datanya
 - [ ] Semua tes RUNBOOK R7 terisi, termasuk yang GAGAL ditulis apa adanya
@@ -434,3 +471,58 @@ kalau ada dokumen yang mengklaim "XGBoost untuk prediksi hari panen", itu yang p
 konfirmasi dev domain (R2), `APP_DEBUG=false` sebelum tunnel dibuka, dan penguncian password
 `root` MySQL. Data lama kelas uji coba (`smoke-test-uid`, `perf-uid` di `predictions`) sengaja
 **tidak** saya hapus — bilang saja kalau mau dibersihkan sebelum user nyata masuk.
+
+## 19. Log progres M2→M3 — 2026-11-16 (Remote Config, entri sensor, naskah tunnel, siap rilis)
+
+Lima commit, semuanya lokal di branch **`feature-letugrow-m1-keamanan-mysql`** (16 commit di depan
+`origin/main`, **tidak ada yang di-push**):
+
+| Commit | Isi | Verifikasi |
+|---|---|---|
+| `eb24666` | `APP_DEBUG=false` jadi default di `.env`/`.env.example` + `POST /api/sensor` `throttle:120,1` → `30,1` | `php artisan test` 29 passed; probe `GET /api/sensor/latest` tanpa token → 401 JSON (bukan HTML) |
+| `e44db28` | `deploy/start_tunnel.ps1` + `.bat`, `tunnel.config.example.json`, `deploy/windows-autostart/` (watchdog `AtStartup` + installer/uninstaller), `deploy/README.md` | jalan penuh lokal dengan `-NoNgrok`: Flask `/health` 200, Laravel `/up` 200, body `POST /api/predict` bebas key `exception/file/trace`, `-Stop` melepas port 5000 & 8000 (pakai `taskkill /T`, bukan `taskkill` polos — anak `artisan serve` sebelumnya tinggal) |
+| `7f4e33b` | `firebase_remote_config ^7.0.1`, `lib/core/remote_settings.dart`, `ApiConfig` prioritas dart-define → RC → default build (debug vs rilis), `app_version.dart`, banner versi di Home, guard resume untuk mode Tamu | `flutter analyze` 0 error; `flutter test` 46 pass (15 tes baru) |
+| `5971303` | fitur `sensor` (domain/data/presentation) + route `/sensor-entry` + tile & tombol di Home | `flutter test` 59 pass (13 tes baru: kontrak body, guard tamu, 422/401/socket/timeout, 3 tes widget) |
+| `79eb092` | `tool/make_keystore.ps1`, `tool/build_release.ps1`, signing bersyarat + `applicationId com.lettgrow.app`, label LettuGrow, `usesCleartextTraffic` pindah ke `src/debug/`, nama di `web/` | `gradlew :app:tasks` (config Kotlin DSL OK), `processDebug/ReleaseManifest` → debug: cleartext yes, release: no, keduanya label LettuGrow; `processReleaseGoogleServices` hijau (paket ada di `google-services.json`) |
+
+**Yang berubah secara perilaku untuk user**
+
+- Dashboard bukan lagi efek samping form prediksi: ada layar **Catat Parameter Kebun** yang
+  mengirim satu baris `sensor_readings` (`source = manual`) dan langsung men-refetch dashboard
+  dengan 1 request. Rentang input form dibaca dari `kGrowthParameters`, angka yang sama dengan
+  aturan `SensorController::store()` — tidak ada batas yang ditulis dua kali.
+- Base URL APK bisa diganti dari Console tanpa build ulang (`api_base_url`), dan APK yang versi
+  minimumnya terlampaui menampilkan banner yang tidak bisa ditutup. Keduanya **fallback diam**:
+  Remote Config belum di-set / jaringan mati = pakai nilai build, start app tidak pernah tertahan
+  lebih dari 3 detik.
+- Rilis tidak lagi menerima `http://`. Developer tetap bisa `adb reverse` karena izin cleartext
+  sekarang milik source set debug saja.
+
+**Keputusan yang tercatat di sini supaya tidak perdebatkan ulang**
+
+1. `minify`/`shrinkResources` tidak diaktifkan (butuh perangkat untuk membuktikan rules R8).
+2. `namespace` tetap `com.example.smart_farming` walau `applicationId` = `com.lettgrow.app`;
+   yang dibaca Google/Firebase/Play adalah applicationId.
+3. Cek versi = peringatan, bukan pemblokir (distribusi APK di luar Play Store tidak punya jalur
+   upgrade paksa).
+4. Entri sensor manual (P4) dipilih di atas simulator (P2) karena angka simulator tidak bisa
+   dibedakan dari telemetri asli di laporan.
+
+**Sisa yang hanya bisa dikerjakan manusia** (lihat `docs/RUNBOOK_MANUAL.md` R2/R4/R5/R6/R7/R10):
+klik Remote Config + publish, konfirmasi dev domain di dashboard ngrok lalu jalankan
+`deploy\start_tunnel.bat`, `tool\make_keystore.ps1` + salinan keystore di luar laptop, UptimeRobot,
+**tigabelas** uji empiris di HP (Tabel R7 ditambah entri sensor, banner versi, Remote Config
+sampai ke perangkat, APK rilis HTTPS-only, nama LettuGrow), dan rotasi `NGROK_AUTHTOKEN` /
+`ADMIN_PASSWORD` / `FLASK_ML_SHARED_SECRET`.
+Build release sesungguhnya (`tool\build_release.ps1`) baru bisa diverifikasi setelah keystore ada;
+di luar itu, satu-satunya cara membuktikan APK benar-benar berfungsi adalah HP.
+
+**Bukti QA yang ikut diperbarui (commit dokumen ini)**
+
+- `Documents/QA/RTM_Kelompok5.xlsx`: baris kebutuhan baru **R-22 s.d. R-27** (Remote Config,
+  peringatan versi, entri sensor P4, naskah tunnel/autostart, signing release, HTTPS-only) dan
+  koreksi bukti pada R-13/R-14/R-18/R-20 yang tadinya masih menulis SQLite & "monitoring dari
+  prediksi".
+- `README.md`: tabel Test Case diperluas sampai **TC-027**; TC-019 s.d. TC-024 punya bukti
+  `flutter test`, TC-025 s.d. TC-027 masih menunggu HP/keystore dan ditandai begitu.
+  Catatan "arsitektur final" di `README.md` dikoreksi: `user_uid` bukan lagi kiriman client.

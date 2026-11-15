@@ -103,8 +103,11 @@ Flutter UI
 > **Catatan arsitektur final:** Flutter tidak lagi memanggil Flask langsung.
 > Laravel (`smart_farming/backend`, port 8000) menjadi satu-satunya backend bagi aplikasi:
 > `POST /api/predict` diproksikan ke Flask (`MlInferenceService`), hasil prediksi dan
-> parameter sensor tersimpan di database, dan identitas user berasal dari Firebase Auth
-> (`user_uid` dikirim bersama request untuk scoping riwayat & monitoring).
+> parameter sensor tersimpan di database, dan identitas user diambil dari **ID token Firebase
+> yang divalidasi di server** (middleware `firebase.auth` + `kreait/firebase-php`; nilai
+> `uid` hasil verifikasi itulah yang dipakai untuk men-scope riwayat & monitoring, dan
+> tersimpan di kolom `user_uid`). Client tidak lagi menentukan identitasnya sendiri lewat
+> body/query — mengirim `user_uid` milik orang lain tidak lagi bisa membaca data orang lain.
 
 Rancangan arsitektur dan pipeline Machine Learning mengikuti rancangan teknis pada proposal.
 
@@ -621,6 +624,11 @@ Jenis pengujian yang digunakan:
 | Performance Testing         | Response/inference measurement | Identifikasi bottleneck                   |
 
 Project memiliki target minimal **15 test case fungsional** yang akan dieksekusi dan didokumentasikan.
+Tabel di atas berisi **27 test case** (TC-016 s.d. TC-018 non-fungsional; TC-019 s.d. TC-027
+ditambahkan 2026-11-16 bersama Remote Config, entri sensor manual, naskah tunnel dan penandaan
+APK release). Status eksekusi tiap kebutuhan dipetakan di `Documents/QA/RTM_Kelompok5.xlsx`;
+TC-019 s.d. TC-024 sudah lulus sebagai `flutter test` tanpa akses jaringan, sisanya butuh
+perangkat/keystore milik manusia (lihat `docs/RUNBOOK_MANUAL.md` R7).
 
 ---
 
@@ -643,6 +651,18 @@ Project memiliki target minimal **15 test case fungsional** yang akan dieksekusi
 | TC-013 | JSON tidak sesuai             | Aplikasi tidak crash            |
 | TC-014 | History kosong                | Empty state ditampilkan         |
 | TC-015 | Prediksi end-to-end           | Alur lengkap berhasil           |
+| TC-016 | Performance: waktu respons API dan inferensi | Tidak ada antre/timeout; dicatat di `docs/PLAN.md` (≈0,09 s lokal) |
+| TC-017 | Compatibility: varian perangkat/emulator Android | Aplikasi ter-install dan berfungsi |
+| TC-018 | Usability: alur login → prediksi → riwayat | Pengguna menyelesaikan alur tanpa panduan |
+| TC-019 | Prioritas base URL: `--dart-define` > Remote Config > default build; slash akhir dinormalisasi | `ApiConfig.resolve` menghasilkan URL yang sama untuk `.../` dan `...` (`test/remote_settings_test.dart`) |
+| TC-020 | Remote Config gagal/tidak tersedia (timeout 3 s, JSON error, offline) | Holder tetap memakai nilai sebelumnya, app **tidak** melempar exception |
+| TC-021 | `minimum_supported_version` Remote Config > versi APK | Banner non-dismissible muncul di Home menyebut kedua angka; app tetap dipakai. Versi build metadata `+N` tidak dihitung |
+| TC-022 | Entri manual di luar rentang (mis. pH 12, TDS 50) | Ditolak di perangkat dengan teks "harus di antara <min> dan <max>", 0 request keluar |
+| TC-023 | Entri manual valid → `POST /api/sensor` | Body memakai nama kolom kontrak ML + `source: "manual"`; 201 = sukses, dashboard ikut ter-invalidate |
+| TC-024 | Entri manual saat mode Tamu / sesi kedaluwarsa / server mati / server menggantung | `AuthFailure` (sebelum request), `AuthFailure` 401, `NetworkFailure`, `ServerFailure` berbatas waktu — bukan exception mentah |
+| TC-025 | Rangkaian penyalaan server (`deploy/start_tunnel.ps1`) idempoten di atas Laragon yang sudah jalan | MySQL → Flask → Laravel → ngrok muncul berurutan di `deploy/logs/`; `-Status` tidak mengubah apa pun |
+| TC-026 | APK release ditandatangani keystore kelompok | `keytool -printcert -jarfile` = `CN=LettuGrow`, bukan `CN=Android Debug` |
+| TC-027 | Build rilis hanya HTTPS | `usesCleartextTraffic` hanya ada di `src/debug/AndroidManifest.xml` |
 
 ---
 
