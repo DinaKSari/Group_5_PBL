@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/remote_settings.dart';
 import 'core/session.dart';
+import 'features/history/presentation/providers/history_providers.dart';
 import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
@@ -50,10 +53,24 @@ class App extends ConsumerStatefulWidget {
 }
 
 class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
+  StreamSubscription<String?>? _uidChanges;
+  String? _lastUid;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _lastUid = Session.uid;
+
+    // Tab Beranda/Prediksi/Riwayat hidup di shell yang sama, jadi provider-nya
+    // tidak ikut mati saat ganti akun. Tanpa ini layar tetap menampilkan daftar
+    // milik akun sebelumnya sampai app ditutup paksa (ditemukan saat uji R7).
+    _uidChanges = FirebaseAuth.instance.authStateChanges().map((user) => user?.uid).listen((uid) {
+      if (uid == _lastUid) return;
+      _lastUid = uid;
+      ref.invalidate(historyProvider);
+      ref.invalidate(monitoringProvider);
+    });
 
     // Wiring notifikasi setelah router siap; navigasi tetap milik presentation.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -65,6 +82,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _uidChanges?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

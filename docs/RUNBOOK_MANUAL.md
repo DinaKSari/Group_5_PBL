@@ -301,19 +301,20 @@ Laporkan hasilnya apa adanya. Kalau gagal, tulis "GAGAL + gejala" — itu lebih 
 
 | # | Tes | Cara | Lulus kalau | Hasil |
 |---|---|---|---|---|
-| 1 | 4G asli | Matikan Wi-Fi HP, install APK, login → prediksi | hasil muncul ≤ 10 detik | `[ ]` |
+| 1 | 4G asli | Matikan Wi-Fi HP, install APK, login → prediksi | hasil muncul ≤ 10 detik | **TIDAK BISA DI HP UJI** — `EQFUD64HBIZDQKTW` tanpa SIM (`gsm.sim.state=ABSENT,ABSENT`); perlu HP lain ber-SIM. Semua request hari ini lewat Wi-Fi "Kos Rahman" ke URL publik yang sama |
 | 2 | Server mati | Close ngrok + `artisan serve`, lalu buka app | ada teks "server offline", **bukan** layar kosong | `[ ]` |
 | 3 | **Reboot laptop** | Restart Windows, **jangan sentuh apa pun** selama 3 menit | app berfungsi lagi tanpa perintah manual | `[ ]` |
 | 4 | Lintas user | Akun B login di HP lain, coba buka riwayat A | ditolak 403 | `[ ]` |
 | 5 | Session kedaluwarsa | Diamkan app > 1 jam, lalu tarik data | auto-refresh atau logout, tidak hang | `[ ]` |
-| 6 | Hapus akun | Jalankan jalur hapus akun, cek MySQL | baris data user hilang | `[ ]` |
+| 6 | Hapus akun | Jalankan jalur hapus akun, cek MySQL | baris data user hilang | **FITURNYA BELUM ADA** — tidak ada route penghapusan di `backend/routes/api.php` dan tidak ada tombolnya di app; bukan kegagalan tes, tapi keputusan scope yang harus diambil (buat jalur hapus, atau tulis "data dihapus manual oleh admin" di laporan) |
 | 7 | Bersamaan | 3 HP menekan tombol prediksi barengan | tidak ada timeout/antre > 15 detik | `[ ]` |
 | 8 | **Entri manual (P4)** | Home → tile "Catat Parameter Kebun", isi 5 nilai di luar rentang dulu (mis. pH 12) | ditolak dengan teks "pH harus di antara 4 dan 9"; nilai valid tersimpan dan dashboard langsung menampilkannya | `[ ]` |
-| 9 | Entri manual saat mode tamu | Login sebagai Tamu, coba buka `/sensor-entry` | tidak bisa masuk / muncul "Masuk untuk mencatat parameter kebun kalian." | `[ ]` |
+| 9 | Entri manual saat mode tamu | Login sebagai Tamu, coba buka `/sensor-entry` | tidak bisa masuk / muncul "Masuk untuk mencatat parameter kebun kalian." | **LULUS** (setelah bug) — tadinya tombol Tamu terpental balik ke splash: guard router memeriksa `Session.hasAccount` yang justru `false` untuk tamu. Diperbaiki `9cec9ac`, kini Home tamu tampil read-only dan tile mencatat menolak dengan pesan yang benar (terscreenshot) |
 | 10 | Peringatan versi | Setel `minimum_supported_version` Remote Config di atas versi APK, buka app | banner non-dismissible muncul di Home, app **tetap** bisa dipakai | `[ ]` |
 | 11 | Remote Config sampai | Publish `api_base_url`, restart app (butuh R4) | data monitoring datang dari URL itu; ubah URL → app ikut tanpa build ulang | `[ ]` |
-| 12 | APK rilis = HTTPS saja | Pasang `app-release.apk`, matikan `adb reverse` | login/prediksi jalan lewat ngrok; tidak ada kegagalan cleartext HTTP | `[ ]` |
-| 13 | Nama app | Lihat launcher + *Tentang* | tertulis **LettuGrow** (`applicationId` `com.lettgrow.app`) | `[ ]` |
+| 12 | APK rilis = HTTPS saja | Pasang `app-release.apk`, matikan `adb reverse` | login/prediksi jalan lewat ngrok; tidak ada kegagalan cleartext HTTP | **LULUS statis** — manifest rilis APK terpasang: 0 `usesCleartextTraffic`, 0 `debuggable` (`aapt dump xmltree`); `POST /api/devices` dari HP hari ini sukses lewat HTTPS. Sisa: satu login/prediksi manual saat memakai data seluler (lihat #1) |
+| 13 | Nama app | Lihat launcher + *Tentang* | tertulis **LettuGrow** (`applicationId` `com.lettgrow.app`) | **LULUS** — `aapt dump badging` APK terpasang: `application-label:'LettuGrow'`, versionName 1.0.0 |
+| 14 | Ganti akun tanpa tutup app | Login akun A → Riwayat → logout → login akun B → langsung buka Riwayat | daftar milik A **hilang** dan tergantikan milik B (tanpa force-stop) | `[ ]` |
 
 Catatan tes #3: **proxy-nya sudah dijalankan 2026-11-16 dan lulus** — task autostart aktif,
 rangkaian dimatikan lalu `Start-ScheduledTask` menyalakan semuanya kembali dalam 12 detik
