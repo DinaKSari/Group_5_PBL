@@ -55,12 +55,25 @@ function Find-KeyTool {
 
 function Test-PathIgnoredByGit([string]$RepoRelative, [string]$AbsolutePath) {
     # File rahasia yang TERLACAK oleh git adalah kecelakaan yang menunggu terjadi.
-    $tracked = & git -C $smartFarmingDir ls-files --error-unmatch $RepoRelative 2>$null
-    if ($LASTEXITCODE -eq 0) {
+    # Catatan: git menulis pesan "did not match any file(s)" ke stderr untuk file yang
+    # memang tidak terlacak (itu hasil yang KITA MAUKAN). Dengan ErrorActionPreference=Stop
+    # dan 2>$null, PowerShell 5.1 mengubah stderr native command itu menjadi terminating
+    # error, jadi preferensi dilonggarkan hanya di sekitar pemanggilan git.
+    $prior = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        $tracked = & git -C $smartFarmingDir ls-files --error-unmatch $RepoRelative 2>&1
+        $trackedExit = $LASTEXITCODE
+        & git -C $smartFarmingDir check-ignore -q $RepoRelative
+        $ignoreExit = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prior
+    }
+
+    if ($trackedExit -eq 0) {
         Stop-WithError "$AbsolutePath terlacak git. Hentikan dulu, jalankan: git rm --cached $RepoRelative"
     }
-    & git -C $smartFarmingDir check-ignore -q $RepoRelative
-    if ($LASTEXITCODE -ne 0) {
+    if ($ignoreExit -ne 0) {
         Write-Warning "$AbsolutePath belum dicakup .gitignore. Cek sebelum lanjut."
     } else {
         Write-Ok "$RepoRelative ter-gitignore."
