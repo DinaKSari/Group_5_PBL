@@ -1,8 +1,8 @@
 """
 Training pipeline untuk model estimasi hari menuju panen selada.
 
-Alur: dataset -> split -> baseline (LinearRegression) + pembanding (RandomForestRegressor)
--> evaluasi (MAE, RMSE, R2) -> simpan model terbaik ke artifacts/model.joblib.
+Alur: dataset -> split -> latih dan evaluasi XGBoost -> latih ulang dengan seluruh data
+-> simpan model ke artifacts/model.joblib.
 
 Jika data/lettuce.csv tidak tersedia, dibuat dataset SAMPLE (deterministik) supaya
 pipeline bisa jalan end-to-end. Ganti dengan dataset Kaggle final (jurijsruko/lettuce)
@@ -16,10 +16,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from xgboost import XGBRegressor
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_CSV = BASE_DIR / "data" / "lettuce.csv"
@@ -93,27 +92,34 @@ def main() -> None:
     X, y = df[FEATURES], df[TARGET]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    candidates = {
-        "LinearRegression": LinearRegression(),
-        "RandomForestRegressor": RandomForestRegressor(n_estimators=200, max_depth=12, random_state=42),
-    }
+    model = XGBRegressor(
+        objective="reg:squarederror",
+        eval_metric="rmse",
+        n_estimators=400,
+        learning_rate=0.04,
+        max_depth=4,
+        min_child_weight=3,
+        subsample=0.85,
+        colsample_bytree=0.9,
+        reg_alpha=0.05,
+        reg_lambda=2.0,
+        tree_method="hist",
+        n_jobs=-1,
+        random_state=42,
+    )
+    model.fit(X_train, y_train)
+    results = [evaluate("XGBRegressor", y_test, model.predict(X_test))]
 
-    results, fitted = [], {}
-    for name, model in candidates.items():
-        model.fit(X_train, y_train)
-        results.append(evaluate(name, y_test, model.predict(X_test)))
-        fitted[name] = model
-
-    best_name = min(results, key=lambda r: r["RMSE"])["model"]
-    best_model = fitted[best_name]
+    # Evaluasi tetap memakai holdout; artefak produksi dilatih dengan semua data.
+    model.fit(X, y)
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    joblib.dump(best_model, ARTIFACTS / "model.joblib")
+    joblib.dump(model, ARTIFACTS / "model.joblib")
     meta = {
         "features": FEATURES,
         "target": TARGET,
         "ranges": RANGES,
-        "selected_model": best_name,
+        "selected_model": "XGBRegressor",
         "dataset_source": source,
         "n_rows": int(len(df)),
         "metrics": results,
@@ -121,9 +127,9 @@ def main() -> None:
     (ARTIFACTS / "features.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     print(f"[train] source={source} rows={len(df)}")
-    for r in results:
-        print(f"  {r['model']:22} MAE={r['MAE']:<6} RMSE={r['RMSE']:<6} R2={r['R2']}")
-    print(f"[train] model terbaik: {best_name} -> artifacts/model.joblib")
+    r = results[0]
+    print(f"  {r['model']:22} MAE={r['MAE']:<6} RMSE={r['RMSE']:<6} R2={r['R2']}")
+    print("[train] model digunakan: XGBRegressor -> artifacts/model.joblib")
 
 
 if __name__ == "__main__":

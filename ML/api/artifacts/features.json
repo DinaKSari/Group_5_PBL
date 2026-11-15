@@ -29,21 +29,15 @@
       9
     ]
   },
-  "selected_model": "RandomForestRegressor",
+  "selected_model": "XGBRegressor",
   "dataset_source": "sample",
   "n_rows": 1200,
   "metrics": [
     {
-      "model": "LinearRegression",
-      "MAE": 3.759,
-      "RMSE": 4.82,
-      "R2": 0.694
-    },
-    {
-      "model": "RandomForestRegressor",
-      "MAE": 1.845,
-      "RMSE": 2.479,
-      "R2": 0.919
+      "model": "XGBRegressor",
+      "MAE": 1.347,
+      "RMSE": 1.717,
+      "R2": 0.961
     }
   ]
 }
