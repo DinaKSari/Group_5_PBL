@@ -1,6 +1,6 @@
 {
-    "name": "smart_farming",
-    "short_name": "smart_farming",
+    "name": "LettuGrow",
+    "short_name": "LettuGrow",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
