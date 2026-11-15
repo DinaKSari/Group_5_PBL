@@ -28,3 +28,8 @@ Desktop.ini
 key.properties
 -service-account.json
 *firebase-adminsdk*.json
+
+# Deploy: log runtime + konfigurasi milik mesin ini (path ngrok/php) tidak masuk repo.
+deploy/logs/
+deploy/tunnel.config.json
+deploy/last-url.txt
