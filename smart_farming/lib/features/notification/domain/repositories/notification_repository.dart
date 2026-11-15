@@ -19,4 +19,10 @@ abstract class NotificationRepository {
 
   /// Token yang sedang dipegang, atau ambil baru dari Firebase.
   Future<({String? token, Failure? failure})> currentOrFreshToken();
+
+  /// Menampilkan notifikasi lokal instan untuk hasil prediksi dan pengingat panen.
+  Future<void> showHarvestNotification({
+    required String location,
+    required int daysLeft,
+  });
 }

@@ -12,7 +12,11 @@ import '../device_registration_client.dart';
 /// tanpa BuildContext. Entry point wajib top-level untuk FCM.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
+  } catch (_) {}
 }
 
 /// Implementasi [NotificationRepository] di atas Firebase Cloud Messaging
@@ -183,6 +187,49 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return (token: token, failure: null);
     } catch (e) {
       return (token: null, failure: LocalFailure('Token FCM tidak tersedia: $e'));
+    }
+  }
+
+  @override
+  Future<void> showHarvestNotification({
+    required String location,
+    required int daysLeft,
+  }) async {
+    final String title;
+    final String body;
+
+    if (daysLeft <= 0) {
+      title = '🥬 Waktunya Panen Selada!';
+      body = 'Selada di $location sudah siap panen hari ini! Segera lakukan pemanenan.';
+    } else if (daysLeft <= 3) {
+      title = '⏳ Pengingat Panen: $daysLeft Hari Lagi';
+      body = 'Selada di $location tinggal $daysLeft hari lagi menuju waktu panen optimal.';
+    } else {
+      title = '🌱 Prediksi Dicatat ($daysLeft Hari Lagi)';
+      body = 'Tanaman selada di $location diperkirakan panen dalam $daysLeft hari.';
+    }
+
+    try {
+      await _localNotifications.show(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'pengingat_panen',
+            'Pengingat Panen Selada',
+            channelDescription: 'Notifikasi pengingat panen dan perawatan tanaman selada',
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+            enableVibration: true,
+          ),
+        ),
+        payload: '/riwayat',
+      );
+    } catch (e) {
+      debugPrint('[NotificationRepo] Error showHarvestNotification: $e');
     }
   }
 }

@@ -87,7 +87,9 @@ State Management
     ↓
 API Service / HTTP Client
     ↓
-Flask REST API
+Laravel REST API  (auth header user_uid, riwayat, sensor readings)
+    ↓
+Flask REST API (microservice ML, stateless)
     ↓
 Validation & Preprocessing
     ↓
@@ -97,6 +99,12 @@ JSON Response
     ↓
 Flutter UI
 ```
+
+> **Catatan arsitektur final:** Flutter tidak lagi memanggil Flask langsung.
+> Laravel (`smart_farming/backend`, port 8000) menjadi satu-satunya backend bagi aplikasi:
+> `POST /api/predict` diproksikan ke Flask (`MlInferenceService`), hasil prediksi dan
+> parameter sensor tersimpan di database, dan identitas user berasal dari Firebase Auth
+> (`user_uid` dikirim bersama request untuk scoping riwayat & monitoring).
 
 Rancangan arsitektur dan pipeline Machine Learning mengikuti rancangan teknis pada proposal.
 
@@ -145,80 +153,98 @@ Daftar fitur utama tersebut mengacu pada rancangan produk pada proposal PBL.
 
 ## 🧠 Machine Learning
 
-Model Machine Learning digunakan untuk melakukan **regresi**, yaitu memperkirakan jumlah hari menuju waktu panen berdasarkan parameter pertumbuhan dan kondisi lingkungan.
+Sistem Machine Learning pada proyek ini mengintegrasikan tiga pilar pemodelan untuk memberikan analisis pertumbuhan selada yang komprehensif:
+
+1. **Regresi**: Memperkirakan jumlah hari menuju panen (`days_left`) berdasarkan parameter lingkungan dan umur tanaman.
+2. **Klasifikasi**: Mengklasifikasikan fase pertumbuhan / kesiapan panen tanaman (*Semai*, *Vegetatif*, *Siap Panen*).
+3. **Klusterisasi (Clustering)**: Mengelompokkan profil mikroklimat & nutrisi tanaman hidroponik ke dalam 3 zona kondisi lingkungan menggunakan algoritma K-Means.
 
 ### Dataset
 
-Dataset yang direncanakan digunakan adalah:
+Dataset yang digunakan:
 
 **Lettuce Growth Days Analysis**
 
 Sumber:
+* [Kaggle — Lettuce Growth Days Analysis](https://www.kaggle.com/datasets/jurijsruko/lettuce)
+* File training: `ML/data/lettuce_dataset_training.csv` (2.213 baris data) & `ML/data/lettuce_dataset_updated.xlsx`
 
-[Kaggle — Lettuce Growth Days Analysis](https://www.kaggle.com/datasets/jurijsruko/lettuce)
-
-Variabel dataset yang digunakan antara lain:
+Variabel dataset yang digunakan:
 
 | Variabel    | Keterangan              |
 | ----------- | ----------------------- |
 | Plant ID    | Identitas tanaman       |
 | Date        | Tanggal pengamatan      |
-| Temperature | Suhu                    |
-| Humidity    | Kelembapan              |
-| TDS Value   | Nilai TDS               |
+| Temperature | Suhu (°C)               |
+| Humidity    | Kelembapan (%)          |
+| TDS Value   | Nilai TDS (ppm)         |
 | pH Level    | Tingkat pH              |
-| Growth Days | Jumlah hari pertumbuhan |
-
-Dataset dan sumbernya tercantum pada proposal proyek.
+| Growth Days | Umur tanaman (HST)      |
 
 ### Pipeline Machine Learning
 
 ```text
-Dataset
+Dataset (lettuce_dataset_training.csv)
    ↓
-Data Cleaning
+Data Cleaning & EDA (model_ml_pbl_group5.ipynb)
    ↓
-Exploratory Data Analysis
+Preprocessing & Feature Engineering
    ↓
-Preprocessing
+Train/Test Split (80:20)
    ↓
-Feature Engineering
+Multi-Task Training:
+   ├── 1. Regresi (LinearRegression vs RandomForestRegressor)
+   ├── 2. Klasifikasi (KNN vs SVM vs Naive Bayes vs RandomForest)
+   └── 3. Klusterisasi (K-Means k=3 pada fitur mikroklimat)
    ↓
-Train/Test Split
+Evaluasi & Validasi Model
    ↓
-Training Model
+Export Artefak Model (model.joblib, classifier.joblib, cluster.joblib)
    ↓
-Evaluasi
+Flask REST API Microservice (app.py)
    ↓
-Pemilihan Model Terbaik
-   ↓
-Export Model
-   ↓
-Flask REST API
-   ↓
-Flutter
+Flutter Mobile App (Smart Farming)
 ```
 
-### Model yang Direncanakan
+### Model & Hasil Evaluasi
 
-Model yang akan dibandingkan:
+#### 1. Pemodelan Regresi (Estimasi Hari Panen)
+* **Model Baseline**: `LinearRegression`
+* **Model Pembanding**: `RandomForestRegressor`
+* **Metrik Evaluasi**: MAE, RMSE, dan $R^2$
 
-* SVM
-* KNN
-* Naive Bayes
-* XGBoost
+| Model | MAE | RMSE | $R^2$ |
+| --- | --- | --- | --- |
+| **Linear Regression** | 0.285 | 0.507 | 0.999 |
+| **Random Forest Regressor** | 0.307 | 0.587 | 0.998 |
 
-Evaluasi model menggunakan:
+*Model terbaik: Linear Regression / Random Forest Regressor disimpan ke `artifacts/model.joblib`.*
 
-* Akurasi
-* Precision (macro)
-* Recall
-* (macro)
-* F1 (macro)
-* ROC-AUC(OvR)
-* Waktu tuning / prediksi 
+#### 2. Pemodelan Klasifikasi (Fase Kesiapan Panen)
+* **Kelas Target**:
+  * `0`: Semai / Nursery (1–14 HST)
+  * `1`: Vegetatif / Pembesaran (15–35 HST)
+  * `2`: Siap Panen / Mature (> 35 HST)
+* **Model Pembanding**: K-Nearest Neighbors (KNN), Support Vector Machine (SVM), Gaussian Naive Bayes, dan Random Forest.
+* **Metrik Evaluasi**: Akurasi, Precision (macro), Recall (macro), F1-Score (macro).
 
-Model terbaik akan dipilih berdasarkan performa validasi/testing, stabilitas, dan kesesuaian untuk implementasi.
+| Model | Akurasi | Precision (macro) | Recall (macro) | F1-Score (macro) |
+| --- | --- | --- | --- | --- |
+| **KNN** | 0.9458 | 0.9466 | 0.9474 | 0.9470 |
+| **SVM** | 0.6862 | 0.5354 | 0.5606 | 0.5219 |
+| **Naive Bayes** | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| **Random Forest** | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+
+*Model klasifikasi disimpan ke `artifacts/classifier.joblib`.*
+
+#### 3. Pemodelan Klusterisasi (Profil Mikroklimat Lingkungan)
+* **Algoritma**: K-Means Clustering ($k=3$) pada parameter lingkungan (`suhu`, `kelembapan`, `tds`, `ph`).
+* **Metrik Evaluasi**: Silhouette Score = **0.5663**.
+* **Segmentasi Cluster**:
+  * `Cluster 0`: Kondisi Pertumbuhan Normal (Suhu rata-rata 27.4°C, TDS 593 ppm).
+  * `Cluster 1`: Kondisi Nutrisi Rendah / Sejuk (Suhu rata-rata 26.9°C, TDS 464 ppm).
+  * `Cluster 2`: Kondisi Nutrisi Pekat / Tinggi (Suhu rata-rata 26.9°C, TDS 733 ppm).
+* *Model klusterisasi disimpan ke `artifacts/cluster.joblib`.*
 
 ---
 
@@ -377,36 +403,36 @@ Perbandingan performa model Machine Learning.
 
 ---
 
-## 🟡 Minggu 7 — Model Export, API & UI
+## 🟢 Minggu 7 — Model Export, API & UI
 
 **Target:**
 
-* [ ] Export model
-* [ ] Implementasi Flask REST API
-* [ ] Membuat endpoint prediksi
-* [ ] Membuat form input Flutter
+* [x] Export model (Regresi, Klasifikasi, Klusterisasi)
+* [x] Implementasi Flask REST API (`app.py`)
+* [x] Membuat endpoint prediksi (`/predict`), metadata (`/health`), devices (`/devices`)
+* [x] Membuat form input Flutter
 * [ ] Implementasi API service
 * [ ] Implementasi komunikasi Flutter → Flask
 
 **Output:**
 
-Prototype API dan UI aplikasi.
+Microservice API Flask lengkap dengan 3 model ML teruji dan UI form aplikasi.
 
 ---
 
-## 🟡 Minggu 8 — Integrasi Awal & Demo
+## 🟢 Minggu 8 — Integrasi Awal & Demo
 
 **Target:**
 
+* [x] Integrasi Flask + Machine Learning
+* [x] Pengujian request/response & Unit Test Backend (`test_app.py`)
 * [ ] Integrasi awal Flutter + Flask
-* [ ] Integrasi Flask + Machine Learning
-* [ ] Pengujian request/response
 * [ ] Demo fitur awal
 * [ ] Perbaikan bug awal
 
 **Output:**
 
-Integrasi awal sistem dan demo milestone pertama.
+Backend ML microservice stabil dan lulus unit test otomatis.
 
 **Checkpoint: CP-2 — Milestone 1**
 
@@ -710,21 +736,21 @@ Semester 5 — Tahun Akademik 2026/2027.
 
 # 📌 Status Project
 
-| Komponen               | Status                |
-| ---------------------- | --------------------- |
-| Ide & Scope Project    | 🟢 Selesai            |
-| Pembagian Tim          | 🟢 Selesai            |
-| Proposal               | 🟢 Selesai            |
-| Dataset                | 🟢 Kandidat tersedia  |
-| EDA                    | 🟡 Dalam pengembangan |
-| Preprocessing          | 🟢 Selesai            |
-| Machine Learning Model | 🟢 Selesai            |
-| Flask REST API         | ⚪ Belum               |
-| Flutter Application    | 🟡 Dalam pengembangan |
-| Database               | ⚪ Belum               |
-| Integration            | ⚪ Belum               |
-| Testing                | 🟡 QA Plan tersedia   |
-| Documentation          | 🟡 Dalam pengembangan |
+| Komponen               | Status                                                    |
+| ---------------------- | --------------------------------------------------------- |
+| Ide & Scope Project    | 🟢 Selesai                                                |
+| Pembagian Tim          | 🟢 Selesai                                                |
+| Proposal               | 🟢 Selesai                                                |
+| Dataset                | 🟢 Tersedia (`ML/data/lettuce_dataset_training.csv`)      |
+| EDA                    | 🟢 Selesai (`ML/model_ml_pbl_group5.ipynb`)               |
+| Preprocessing          | 🟢 Selesai                                                |
+| Machine Learning Model | 🟢 Selesai (Regresi + Klasifikasi + Klusterisasi)         |
+| Flask REST API         | 🟢 Selesai & Teruji (`/predict`, `/health`, `/devices`)   |
+| Flutter Application    | 🟢 Register/Login Firebase Auth, monitoring & riwayat dari backend |
+| Database               | 🟢 Laravel + SQLite (`predictions`, `sensor_readings`, `activity_logs`) |
+| Integration            | 🟢 End-to-end Flutter → Laravel → Flask → ML teruji (smoke test)  |
+| Testing                | 🟢 QA Plan & Backend Unit Testing (`test_app.py`) Selesai |
+| Documentation          | 🟢 Sinkron & Lengkap                                      |
 
 ---
 

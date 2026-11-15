@@ -9,6 +9,7 @@ class Prediction extends Model
 {
     protected $fillable = [
         'user_id',
+        'user_uid',
         'lokasi',
         'tanggal_input',
         'umur_hst',
@@ -21,6 +22,7 @@ class Prediction extends Model
         'harvest_date',
         'ml_model',
         'meta',
+        'ml_result',
     ];
 
     protected function casts(): array
@@ -36,6 +38,7 @@ class Prediction extends Model
             'days_left' => 'integer',
             'estimated_total_hst' => 'integer',
             'meta' => 'array',
+            'ml_result' => 'array',
         ];
     }
 
