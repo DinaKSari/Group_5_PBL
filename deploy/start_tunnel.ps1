@@ -309,5 +309,5 @@ Set-Content -LiteralPath (Join-Path $deployDir 'last-url.txt') -Value "$url/api"
 Write-Host ''
 Write-Host "  API publik     : $url/api" -ForegroundColor Green
 Write-Host "  Remote Config  : isi api_base_url = $url/api" -ForegroundColor DarkGray
-Write-Host '  Hentikan       : .\stop_tunnel.ps1   (atau .\start_tunnel.ps1 -Stop)' -ForegroundColor DarkGray
+Write-Host '  Hentikan       : .\start_tunnel.ps1 -Stop  (MySQL tetap hidup; -Stop -MySql sekalian)' -ForegroundColor DarkGray
 Write-Host ''

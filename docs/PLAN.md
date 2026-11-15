@@ -300,8 +300,11 @@ terpasang dan berfungsi di device nyata lewat 4G.
       — terverifikasi lokal (`php artisan test`, 29 pass); cek 403 lintas user tetap butuh 2 HP
 - [ ] Mode Tamu tidak mengembalikan data user lain — read-only sejak `bdab2d3`, dan form entri
       sensor menahan Tamu **sebelum** request keluar (`test/sensor_entry_test.dart`)
-- [ ] Flask menolak request tanpa secret — endpoint internal sejak `4f25acf`; masih perlu dibuktikan
-      lewat URL publik (ngrok aktif + `curl`) karena itu jalur yang kini bisa dijangkau internet
+- [x] Flask menolak request tanpa secret — dibuktikan 2026-11-16 saat tunnel aktif:
+      `POST http://127.0.0.1:5000/predict` tanpa `X-ML-Secret` → 401
+      `{"error":"Endpoint internal: token layanan tidak valid."}`, dan port 5000 hanya bind
+      `127.0.0.1` (`netstat`) sehingga tidak tercapai dari LAN maupun lewat ngrok (ngrok
+      mem-forward 8000 saja)
 - [x] DB = MySQL (pindah `ae096d4` + migrasi data teruji) dan `APP_DEBUG=false` dipaksa
       `deploy/start_tunnel.ps1`; probe `GET /api/sensor/latest` membalas JSON 401, bukan stack trace
 - [ ] APK release ditandatangani keystore sendiri (R5 = kalian), `usesCleartextTraffic` **sudah**
@@ -526,3 +529,19 @@ di luar itu, satu-satunya cara membuktikan APK benar-benar berfungsi adalah HP.
 - `README.md`: tabel Test Case diperluas sampai **TC-027**; TC-019 s.d. TC-024 punya bukti
   `flutter test`, TC-025 s.d. TC-027 masih menunggu HP/keystore dan ditandai begitu.
   Catatan "arsitektur final" di `README.md` dikoreksi: `user_uid` bukan lagi kiriman client.
+
+**Tunnel publik AKTIF dan terverifikasi (2026-11-16)**
+
+`deploy\start_tunnel.ps1` dijalankan penuh: MySQL 3306 → Flask ML 5000 → Laravel 8000
+(bind `127.0.0.1`) → ngrok 4040, URL `https://craftily-handcraft-outboard.ngrok-free.dev`
+(salinan di `deploy\last-url.txt`). Bukti dari sisi publik: `GET /up` 200 dalam 0,6 s tanpa
+halaman interstitial ngrok; `GET /api/sensor/latest` tanpa token → 401 JSON, dengan token sampah
+→ 401 JSON ("Sesi tidak valid, silakan masuk kembali"); `POST /api/predict` tanpa token → 401 JSON.
+Tidak ada balasan yang memuat `exception`/`file`/`trace`; Flask sendiri membalas 401
+"Endpoint internal: token layanan tidak valid" kalau dipanggil langsung tanpa secret.
+`-Status` dan `-Stop` teruji idempoten di atas Laragon yang sudah jalan.
+
+Artinya laptop ini **sedang terbuka ke internet** lewat URL itu — dengan `APP_DEBUG=false`,
+tidak ada data user yang terbaca tanpa idToken, dan Flask terkunci di localhost. Yang masih
+belum: task autostart belum terdaftar (RUNBOOK R2 item 7, butuh UAC kalian) sehingga layanan
+mati bersama laptop, dan kuota 20.000 request/bulan mulai terpakai nyata.

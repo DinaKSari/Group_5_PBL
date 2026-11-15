@@ -75,19 +75,36 @@ Keputusan, bukan perintah terminal. Kirim jawabannya dalam satu pesan:
 - [x] 4. ⚠️ Perbaikan lingkungan: agent bawaan Laragon `ngrok 3.1.0` **ditolak server**
       (`ERR_NGROK_121`, minimal agent 3.29.0). Sudah `ngrok update` → **3.39.13**.
       Kalau suatu hari muncul ERR_NGROK_121 lagi, jalankan `ngrok update`.
-- [ ] 5. Verifikasi sendiri di dashboard: halaman *Domains* harus menampilkan dev domain di atas
-      (sekadar memastikan tidak salah baca; tidak ada yang perlu dibeli).
-- [ ] 6. **Jalankan tunnel-nya**: klik dua kali `deploy\start_tunnel.bat` (atau dari PowerShell:
-      `.\deploy\start_tunnel.ps1`). Skrip itu — bukan `run_all.bat` — yang dipakai user nyata:
-      MySQL → Flask ML → Laravel (`APP_DEBUG=false` dipaksa) → ngrok, dan mencetak URL publik aktif.
-      Perintah lain: `.\deploy\start_tunnel.ps1 -Status` (lihat apa yang hidup, tidak mengubah
-      apa pun), `-Stop` (matikan Laravel/Flask/ngrok, MySQL dibiarkan), `-NoNgrok` (lokal saja).
-      Autostart setelah boot (butuh Administrator sekali):
-      `powershell -ExecutionPolicy Bypass -File deploy\windows-autostart\install-autostart.ps1`
-      → uji tanpa reboot dengan `Start-ScheduledTask -TaskName 'LettuGrow Tunnel'`, log di
-      `deploy\logs\autostart.log`. Detail di `deploy\README.md`.
-      Kalau autofinder salah menebak path binaries, salin `deploy\tunnel.config.example.json`
-      → `deploy\tunnel.config.json` lalu isi path-nya (file itu di-gitignore).
+- [ ] 5. Verifikasi sendiri di dashboard: halaman *Domains* harus menampilkan dev domain di atas.
+      (Sudah terbukti dari sisi teknis 2026-11-16: agent akun ini benar-benar melayani
+      `https://craftily-handcraft-outboard.ngrok-free.dev`, jadi domain itu memang ter-assign —
+      centang setelah kalian melihatnya sendiri di browser.)
+- [x] 6. **Dijalankan & terverifikasi 2026-11-16** lewat `.\deploy\start_tunnel.ps1`:
+      MySQL (3306) → Flask ML (5000) → Laravel (8000) → ngrok (4040) hidup, dan dari internet
+      terbukti: `GET /up` = 200 dalam 0,6 s tanpa interstitial, `GET /api/sensor/latest` tanpa
+      token = 401 JSON, dengan token sampah = 401 JSON, `POST /api/predict` tanpa token = 401 JSON
+      (tidak ada `exception`/`file`/`trace` yang keluar). URL tersimpan di `deploy\last-url.txt`.
+      Skripnya sendiri: `deploy\start_tunnel.bat` (klik dua kali) atau
+      `.\deploy\start_tunnel.ps1`; `-Status` melihat tanpa mengubah apa pun, `-Stop` matikan
+      Laravel/Flask/ngrok (MySQL dibiarkan), `-NoNgrok` lokal saja.
+      ⚠️ Ini status **sekarang**, bukan permanen: tunnel mati begitu laptop mati atau ngrok
+      keluar, dan `deploy\windows-autostart\install-autostart.ps1` **belum** kalian
+      jalankan (butuh UAC), jadi belum ada jaminan pulih sendiri setelah boot.
+- [ ] 7. Autostart setelah boot (butuh Administrator sekali — tidak bisa saya kerjakan):
+
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows-autostart\install-autostart.ps1
+  # uji TANPA reboot (ini yang menggantikan keberanian menyalakan ulang laptop):
+  Start-ScheduledTask -TaskName 'LettuGrow Tunnel'
+  Get-Content deploy\logs\autostart.log -Tail 20
+  # bongkar:
+  powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows-autostart\uninstall-autostart.ps1
+  ```
+
+  Detail & alasan tiap langkah ada di `deploy\README.md`. Kalau autofinder salah menebak path
+  binaries, salin `deploy\tunnel.config.example.json` → `deploy\tunnel.config.json` lalu isi
+  path-nya (file itu di-gitignore).
+
 
 **Kuota free plan yang membatasi jumlah user** (dari dokumen resmi ngrok, 2026-11-16):
 20.000 request HTTP/bulan, 1 GB data keluar/bulan, maks 3 endpoint online. Dengan 2 request per
