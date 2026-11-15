@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/session.dart';
+import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
 import 'features/notification/presentation/providers/notification_providers.dart';
@@ -20,10 +21,16 @@ void main() async {
   );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // Pulihkan identitas sesi lama (Firebase persisten) sebelum UI berjalan.
-  final restoredUser = FirebaseAuth.instance.currentUser;
-  Session.uid = restoredUser?.uid;
-  Session.email = restoredUser?.email;
+  // Sumber kebenaran sesi: kejadian pertama = pemulihan user yang tersimpan
+  // Firebase, selanjutnya login/logout. Router & layer data hanya membaca
+  // Session, tidak pernah menebak identitas sendiri.
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    Session.uid = user?.uid;
+    Session.email = user?.email;
+    Session.name = user?.displayName;
+    if (user != null) Session.isGuest = false;
+    authStateNotifier.value = authStateNotifier.value + 1;
+  });
 
   runApp(const ProviderScope(child: App()));
 }
@@ -35,10 +42,11 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> {
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // Wiring notifikasi setelah router siap; navigasi tetap milik presentation.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -46,6 +54,21 @@ class _AppState extends ConsumerState<App> {
             onNotificationOpened: (route) => appRouter.go(route),
           );
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hemat kuota ngrok: hanya tarik ulang saat kembali ke foreground, bukan
+    // dengan polling.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(monitoringProvider);
+    }
   }
 
   @override

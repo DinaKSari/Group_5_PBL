@@ -101,8 +101,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                         padding: EdgeInsets.symmetric(vertical: 32),
                         child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
                       ),
-                      error: (e, st) => ParamGrid(params: _paramsFrom(const MonitoringData())),
-                      data: (d) => ParamGrid(params: _paramsFrom(d)),
+                      error: (e, st) => _DataNotice(
+                        message: 'Data pemantauan gagal dimuat: $e',
+                        onRetry: () => ref.invalidate(monitoringProvider),
+                      ),
+                      data: (d) => d.failure == null
+                          ? ParamGrid(params: _paramsFrom(d))
+                          : _DataNotice(
+                              message: d.failure!,
+                              onRetry: () => ref.invalidate(monitoringProvider),
+                            ),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -111,6 +119,35 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Alasan kenapa grid kosong — server mati, sesi habis, atau mode Tamu.
+class _DataNotice extends StatelessWidget {
+  const _DataNotice({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6F4),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 28),
+          const SizedBox(height: 10),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onRetry, child: const Text('Coba lagi')),
+        ],
       ),
     );
   }

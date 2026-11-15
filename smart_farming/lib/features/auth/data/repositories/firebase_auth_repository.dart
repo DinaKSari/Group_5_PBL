@@ -32,6 +32,8 @@ class FirebaseAuthRepository implements AuthRepository {
       );
       Session.uid = cred.user?.uid;
       Session.email = cred.user?.email;
+      Session.name = cred.user?.displayName;
+      Session.isGuest = false;
       return (signedIn: true, failure: null);
     } on FirebaseAuthException catch (e) {
       return (signedIn: false, failure: AuthFailure(_pesan(e)));
@@ -50,6 +52,8 @@ class FirebaseAuthRepository implements AuthRepository {
       );
       Session.uid = cred.user?.uid;
       Session.email = cred.user?.email;
+      Session.name = cred.user?.displayName;
+      Session.isGuest = false;
       return (registered: true, failure: null);
     } on FirebaseAuthException catch (e) {
       return (registered: false, failure: AuthFailure(_pesan(e)));
@@ -58,8 +62,7 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async {
-    Session.uid = null;
-    Session.email = null;
+    Session.clear();
     await FirebaseAuth.instance.signOut();
   }
 

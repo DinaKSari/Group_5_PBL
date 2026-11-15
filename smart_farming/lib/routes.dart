@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/api_client.dart';
+import 'core/session.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/auth/presentation/pages/register_page.dart';
 import 'features/history/presentation/pages/history_page.dart';
@@ -24,8 +26,22 @@ abstract final class AppRoutes {
 /// Alias backward-compatibility untuk AppRoutes
 typedef AppRoute = AppRoutes;
 
+/// Naik setiap kali status login berubah (didengarkan di main.dart dari
+/// FirebaseAuth.authStateChanges) sehingga guard router ikut ter-evaluasi lagi.
+final authStateNotifier = ValueNotifier<int>(0);
+
+/// Halaman yang memerlukan identitas; hanya boleh dibuka lewat splash/login
+/// supaya token Mode Tamu tidak pernah dipakai ke API.
+final _privateLocations = {AppRoutes.home, AppRoutes.prediksi, AppRoutes.riwayat};
+
 final appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
+  refreshListenable: Listenable.merge([authStateNotifier, sessionExpiredNotifier]),
+  redirect: (context, state) {
+    final location = state.matchedLocation;
+    if (!_privateLocations.contains(location)) return null;
+    return Session.hasAccount ? null : AppRoutes.splash;
+  },
   routes: [
     GoRoute(
       path: '/',
