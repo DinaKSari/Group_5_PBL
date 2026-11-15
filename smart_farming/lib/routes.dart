@@ -9,6 +9,7 @@ import 'features/history/presentation/pages/history_page.dart';
 import 'features/home/presentation/pages/home_page.dart';
 import 'features/onboarding/presentation/pages/splash_page.dart';
 import 'features/prediction/presentation/pages/prediction_page.dart';
+import 'features/sensor/presentation/pages/sensor_entry_page.dart';
 
 abstract final class AppRoutes {
   static const splash = '/splash';
@@ -18,6 +19,10 @@ abstract final class AppRoutes {
   static const dashboard = '/dashboard';
   static const prediksi = '/prediksi';
   static const riwayat = '/riwayat';
+
+  /// Entri manual parameter kebun (keputusan P4). Route push, bukan tab:
+  /// dipakai sesekali setelah mengukur, bukan tempat yang dituju tiap sesi.
+  static const sensor = '/sensor-entry';
 
   /// Rute default yang dituju saat notifikasi tidak menyertakan rute spesifik
   static const defaultRoute = riwayat;
@@ -32,7 +37,12 @@ final authStateNotifier = ValueNotifier<int>(0);
 
 /// Halaman yang memerlukan identitas; hanya boleh dibuka lewat splash/login
 /// supaya token Mode Tamu tidak pernah dipakai ke API.
-final _privateLocations = {AppRoutes.home, AppRoutes.prediksi, AppRoutes.riwayat};
+final _privateLocations = {
+  AppRoutes.home,
+  AppRoutes.prediksi,
+  AppRoutes.riwayat,
+  AppRoutes.sensor,
+};
 
 final appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -58,6 +68,12 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.register,
       builder: (context, state) => const RegisterPage(),
+    ),
+    // Di luar StatefulShellRoute: bottom navigation tetap 3 tab seperti
+    // sekarang, halaman ini ditumpuk di atas Home saat dipakai.
+    GoRoute(
+      path: AppRoutes.sensor,
+      builder: (context, state) => const SensorEntryPage(),
     ),
     GoRoute(
       path: AppRoutes.dashboard,

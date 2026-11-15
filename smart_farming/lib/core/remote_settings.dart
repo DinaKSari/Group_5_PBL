@@ -30,7 +30,9 @@ abstract final class RemoteSettings {
 
     if (values.containsKey(RemoteKeys.minimumSupportedVersion)) {
       final minimum = values[RemoteKeys.minimumSupportedVersion]?.trim();
-      _minimumSupportedVersion = (minimum == null || minimum.isEmpty) ? null : minimum;
+      _minimumSupportedVersion = (minimum == null || minimum.isEmpty)
+          ? null
+          : minimum;
     }
   }
 
@@ -77,7 +79,9 @@ Future<void> loadRemoteSettings({
   Future<Map<String, String?>> Function()? fetch,
 }) async {
   try {
-    RemoteSettings.apply(await (fetch ?? _fetchFromFirebase).call().timeout(timeout));
+    RemoteSettings.apply(
+      await (fetch ?? _fetchFromFirebase).call().timeout(timeout),
+    );
   } catch (error) {
     debugPrint('Remote Config dilewati, pakai nilai build: $error');
   }
@@ -85,12 +89,14 @@ Future<void> loadRemoteSettings({
 
 Future<Map<String, String?>> _fetchFromFirebase() async {
   final remote = FirebaseRemoteConfig.instance;
-  await remote.setConfigSettings(RemoteConfigSettings(
-    fetchTimeout: const Duration(seconds: 3),
-    // 12 jam: pindah ngrok -> hosting lain tetap butuh 1x buka app berikutnya,
-    // tapi tidak menambah request ke Firebase tiap kali aplikasi dibuka.
-    minimumFetchInterval: const Duration(hours: 12),
-  ));
+  await remote.setConfigSettings(
+    RemoteConfigSettings(
+      fetchTimeout: const Duration(seconds: 3),
+      // 12 jam: pindah ngrok -> hosting lain tetap butuh 1x buka app berikutnya,
+      // tapi tidak menambah request ke Firebase tiap kali aplikasi dibuka.
+      minimumFetchInterval: const Duration(hours: 12),
+    ),
+  );
   await remote.fetchAndActivate();
 
   final values = <String, String?>{};

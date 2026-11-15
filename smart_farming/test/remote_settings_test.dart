@@ -13,12 +13,15 @@ void main() {
   group('RemoteSettings.apply', () {
     test('mengisi holder sinkron dan membuang spasi/slash akhir', () {
       RemoteSettings.apply({
-        RemoteKeys.apiBaseUrl: '  https://craftily-handcraft-outboard.ngrok-free.dev/api/ ',
+        RemoteKeys.apiBaseUrl:
+            '  https://craftily-handcraft-outboard.ngrok-free.dev/api/ ',
         RemoteKeys.minimumSupportedVersion: ' 1.2.0 ',
       });
 
-      expect(RemoteSettings.apiBaseUrl,
-          'https://craftily-handcraft-outboard.ngrok-free.dev/api');
+      expect(
+        RemoteSettings.apiBaseUrl,
+        'https://craftily-handcraft-outboard.ngrok-free.dev/api',
+      );
       expect(RemoteSettings.minimumSupportedVersion, '1.2.0');
     });
 
@@ -47,7 +50,10 @@ void main() {
       expect(RemoteSettings.compareVersions('1.9.0', '1.10.0'), lessThan(0));
       expect(RemoteSettings.compareVersions('1.2', '1.2.0'), isZero);
       expect(RemoteSettings.compareVersions('1.2.0', '1.2.0+7'), isZero);
-      expect(RemoteSettings.compareVersions('2.0.0', '1.99.99'), greaterThan(0));
+      expect(
+        RemoteSettings.compareVersions('2.0.0', '1.99.99'),
+        greaterThan(0),
+      );
     });
 
     test('nilai sampah dianggap 0, tidak melempar', () {
@@ -55,15 +61,18 @@ void main() {
       expect(RemoteSettings.compareVersions('1.x', '1.0'), isZero);
     });
 
-    test('tanpa minimum_supported_version = tidak pernah dianggap tertinggal', () {
-      expect(RemoteSettings.isOutdated('1.0.0'), isFalse);
+    test(
+      'tanpa minimum_supported_version = tidak pernah dianggap tertinggal',
+      () {
+        expect(RemoteSettings.isOutdated('1.0.0'), isFalse);
 
-      RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: '1.0.0'});
-      expect(RemoteSettings.isOutdated('1.0.0'), isFalse);
+        RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: '1.0.0'});
+        expect(RemoteSettings.isOutdated('1.0.0'), isFalse);
 
-      RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: '1.1.0'});
-      expect(RemoteSettings.isOutdated('1.0.0'), isTrue);
-    });
+        RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: '1.1.0'});
+        expect(RemoteSettings.isOutdated('1.0.0'), isTrue);
+      },
+    );
   });
 
   group('ApiConfig', () {
@@ -72,76 +81,107 @@ void main() {
     });
 
     test('Remote Config dipakai begitu tersedia', () {
-      RemoteSettings.apply(
-          {RemoteKeys.apiBaseUrl: 'https://tunnel.test.ngrok-free.dev/api'});
+      RemoteSettings.apply({
+        RemoteKeys.apiBaseUrl: 'https://tunnel.test.ngrok-free.dev/api',
+      });
 
       expect(ApiConfig.baseUrl, 'https://tunnel.test.ngrok-free.dev/api');
     });
 
-    test('override eksplisit menang atas Remote Config (jalur dart-define)', () {
-      RemoteSettings.apply({RemoteKeys.apiBaseUrl: 'https://rc.test/api'});
+    test(
+      'override eksplisit menang atas Remote Config (jalur dart-define)',
+      () {
+        RemoteSettings.apply({RemoteKeys.apiBaseUrl: 'https://rc.test/api'});
 
-      expect(ApiConfig.resolve(remoteValue: 'http://10.0.2.2:8000/api'),
-          'http://10.0.2.2:8000/api');
-    });
+        expect(
+          ApiConfig.resolve(remoteValue: 'http://10.0.2.2:8000/api'),
+          'http://10.0.2.2:8000/api',
+        );
+      },
+    );
 
     test('slash akhir tidak mengubah hasil', () {
-      expect(ApiConfig.resolve(remoteValue: 'https://rc.test/api//'),
-          ApiConfig.resolve(remoteValue: 'https://rc.test/api'));
+      expect(
+        ApiConfig.resolve(remoteValue: 'https://rc.test/api//'),
+        ApiConfig.resolve(remoteValue: 'https://rc.test/api'),
+      );
     });
   });
 
   group('loadRemoteSettings', () {
     test('menulis hasil fetch ke holder', () async {
-      await loadRemoteSettings(fetch: () async => {
-            RemoteKeys.apiBaseUrl: 'https://dari-console.test/api',
-            RemoteKeys.minimumSupportedVersion: '1.4.0',
-          });
+      await loadRemoteSettings(
+        fetch: () async => {
+          RemoteKeys.apiBaseUrl: 'https://dari-console.test/api',
+          RemoteKeys.minimumSupportedVersion: '1.4.0',
+        },
+      );
 
       expect(RemoteSettings.apiBaseUrl, 'https://dari-console.test/api');
       expect(RemoteSettings.isOutdated('1.0.0'), isTrue);
     });
 
-    test('fetch yang gagal tidak melempar dan tidak menghapus nilai lama', () async {
-      await loadRemoteSettings(
-          fetch: () async => {RemoteKeys.apiBaseUrl: 'https://lama.test/api'});
+    test(
+      'fetch yang gagal tidak melempar dan tidak menghapus nilai lama',
+      () async {
+        await loadRemoteSettings(
+          fetch: () async => {RemoteKeys.apiBaseUrl: 'https://lama.test/api'},
+        );
 
-      await loadRemoteSettings(fetch: () async => throw StateError('offline'));
+        await loadRemoteSettings(
+          fetch: () async => throw StateError('offline'),
+        );
 
-      expect(RemoteSettings.apiBaseUrl, 'https://lama.test/api');
-    });
+        expect(RemoteSettings.apiBaseUrl, 'https://lama.test/api');
+      },
+    );
 
-    test('fetch yang menggantung dipotong timeout, start app tidak tertahan',
-        () async {
-      final started = DateTime.now();
-      await loadRemoteSettings(
-        timeout: const Duration(milliseconds: 50),
-        fetch: () => Completer<Map<String, String?>>().future,
-      );
+    test(
+      'fetch yang menggantung dipotong timeout, start app tidak tertahan',
+      () async {
+        final started = DateTime.now();
+        await loadRemoteSettings(
+          timeout: const Duration(milliseconds: 50),
+          fetch: () => Completer<Map<String, String?>>().future,
+        );
 
-      expect(DateTime.now().difference(started), lessThan(const Duration(seconds: 2)));
-      expect(RemoteSettings.apiBaseUrl, isNull);
-      expect(ApiConfig.baseUrl, ApiConfig.buildDefault);
-    });
+        expect(
+          DateTime.now().difference(started),
+          lessThan(const Duration(seconds: 2)),
+        );
+        expect(RemoteSettings.apiBaseUrl, isNull);
+        expect(ApiConfig.baseUrl, ApiConfig.buildDefault);
+      },
+    );
   });
 
   group('VersionNoticeBanner', () {
     Future<void> pump(WidgetTester tester) => tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: const VersionNoticeBanner())),
-        );
+      MaterialApp(home: Scaffold(body: const VersionNoticeBanner())),
+    );
 
-    testWidgets('tidak tampil selama versi APK memenuhi minimum', (tester) async {
+    testWidgets('tidak tampil selama versi APK memenuhi minimum', (
+      tester,
+    ) async {
       RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: appVersion});
       await pump(tester);
 
-      expect(find.textContaining('lebih lama dari versi minimum'), findsNothing);
+      expect(
+        find.textContaining('lebih lama dari versi minimum'),
+        findsNothing,
+      );
     });
 
-    testWidgets('tampil dan menyebut kedua angka versi saat tertinggal', (tester) async {
+    testWidgets('tampil dan menyebut kedua angka versi saat tertinggal', (
+      tester,
+    ) async {
       RemoteSettings.apply({RemoteKeys.minimumSupportedVersion: '99.0.0'});
       await pump(tester);
 
-      expect(find.textContaining('lebih lama dari versi minimum 99.0.0'), findsOneWidget);
+      expect(
+        find.textContaining('lebih lama dari versi minimum 99.0.0'),
+        findsOneWidget,
+      );
       // Non-dismissible: tidak ada tombol tutup di banner.
       expect(find.bySubtype<IconButton>(), findsNothing);
     });

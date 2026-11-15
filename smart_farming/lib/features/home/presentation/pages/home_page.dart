@@ -93,6 +93,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(height: 14),
                     PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
+                    const SizedBox(height: 10),
+                    SensorEntryTile(onTap: () => context.push(AppRoute.sensor)),
                     const VersionNoticeBanner(),
                     const SizedBox(height: 22),
                     const SectionTile(title: 'PARAMETER KRITIS'),
@@ -162,6 +164,8 @@ String _fmtDate(DateTime d) {
   return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
+/// Baris kecil di bawah "PARAMETER KRITIS": dari mana angka ini datang, dan
+/// jalan pintas mencatat sendiri kalau belum ada apa-apa.
 class _SensorSubtitle extends StatelessWidget {
   const _SensorSubtitle({required this.monitoring});
   final AsyncValue<MonitoringData> monitoring;
@@ -169,14 +173,26 @@ class _SensorSubtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return monitoring.maybeWhen(
-      data: (d) => Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          d.sensor == null
-              ? 'Belum ada data sensor — mulai prediksi pertama Anda'
-              : 'Live dari backend • ${d.sensor!.lokasi} • ${_fmtTime(d.sensor!.updatedAt)}',
-          style: const TextStyle(color: AppColors.muted, fontSize: 11),
-        ),
+      data: (d) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              d.sensor == null
+                  ? 'Belum ada data sensor — catat parameter kebun kalian'
+                  : 'Live dari backend • ${d.sensor!.lokasi} • ${_fmtTime(d.sensor!.updatedAt)}',
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
+          ),
+          if (d.sensor == null)
+            TextButton(
+              onPressed: () => context.push(AppRoute.sensor),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Catat sekarang', style: TextStyle(fontSize: 11)),
+            ),
+        ],
       ),
       error: (e, st) => const Align(
         alignment: Alignment.centerLeft,
@@ -441,6 +457,38 @@ class VersionNoticeBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Pintu ke pencatatan parameter manual (keputusan P4: belum ada sensor IoT).
+class SensorEntryTile extends StatelessWidget {
+  const SensorEntryTile({super.key, required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFDF3E2),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        leading: const DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0xFFB26A00),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Icon(Icons.edit_note_rounded, color: Colors.white),
+          ),
+        ),
+        title: const Text('Catat Parameter Kebun', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
+        subtitle: const Text('Ukur tangan, lalu isi umur HST, suhu, lembap, TDS & pH', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text),
       ),
     );
   }

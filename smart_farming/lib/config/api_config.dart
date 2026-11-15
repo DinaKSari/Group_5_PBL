@@ -15,14 +15,18 @@ abstract final class ApiConfig {
   /// Untuk menjalankan tanpa kabel (HP dan laptop harus saling terjangkau):
   ///   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api    # emulator
   ///   flutter run --dart-define=API_BASE_URL=http://IP-LAPTOP:8000/api   # satu jaringan dengan laptop
-  static const String dartDefineOverride = String.fromEnvironment('API_BASE_URL');
+  static const String dartDefineOverride = String.fromEnvironment(
+    'API_BASE_URL',
+  );
   static const String buildDefault = 'http://127.0.0.1:8000/api';
 
   static String resolve({String? remoteValue}) {
     if (dartDefineOverride.isNotEmpty) return _normalize(dartDefineOverride);
 
     final remote = remoteValue ?? RemoteSettings.apiBaseUrl;
-    if (remote != null && remote.trim().isNotEmpty) return _normalize(remote.trim());
+    if (remote != null && remote.trim().isNotEmpty) {
+      return _normalize(remote.trim());
+    }
 
     return buildDefault;
   }
