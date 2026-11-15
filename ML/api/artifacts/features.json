@@ -1,4 +1,6 @@
 {
+  "dataset_source": "lettuce_dataset_training.csv",
+  "n_rows": 2213,
   "features": [
     "umur_hst",
     "suhu",
@@ -6,44 +8,254 @@
     "tds",
     "ph"
   ],
-  "target": "days_left",
+  "env_features": [
+    "suhu",
+    "kelembapan",
+    "tds",
+    "ph"
+  ],
   "ranges": {
     "umur_hst": [
       1,
-      45
+      48
     ],
     "suhu": [
-      10,
-      40
+      15,
+      38
     ],
     "kelembapan": [
-      30,
-      100
+      40,
+      95
     ],
     "tds": [
-      200,
-      1500
+      300,
+      1400
     ],
     "ph": [
-      4,
-      9
+      4.5,
+      8.5
     ]
   },
-  "selected_model": "RandomForestRegressor",
-  "dataset_source": "sample",
-  "n_rows": 1200,
-  "metrics": [
-    {
-      "model": "LinearRegression",
-      "MAE": 3.759,
-      "RMSE": 4.82,
-      "R2": 0.694
+  "stage_labels": {
+    "0": "Semai (Nursery)",
+    "1": "Vegetatif (Pembesaran)",
+    "2": "Siap Panen (Mature)"
+  },
+  "xgboost_available": true,
+  "regression": {
+    "target": "days_left",
+    "selected_model": "LinearRegression",
+    "metrics": [
+      {
+        "model": "LinearRegression",
+        "MAE": 0.285,
+        "RMSE": 0.507,
+        "R2": 0.999,
+        "fit_seconds": 0.001,
+        "inference_ms": 0.0049
+      },
+      {
+        "model": "RandomForestRegressor",
+        "MAE": 0.307,
+        "RMSE": 0.587,
+        "R2": 0.998,
+        "fit_seconds": 0.299,
+        "inference_ms": 0.0665
+      },
+      {
+        "model": "XGBoost",
+        "MAE": 0.328,
+        "RMSE": 0.552,
+        "R2": 0.998,
+        "fit_seconds": 0.113,
+        "inference_ms": 0.0141
+      }
+    ]
+  },
+  "classification": {
+    "target": "stage_class",
+    "selected_model": "XGBoost",
+    "note": "stage_class adalah fungsi deterministik umur_hst; akurasi ~1.0 mencerminkan separabilitas trivial, bukan penemuan model.",
+    "baseline_most_frequent_accuracy": 0.4831,
+    "env_only_accuracy_no_age": 0.6479,
+    "confusion_matrix": [
+      [
+        132,
+        0,
+        0
+      ],
+      [
+        0,
+        214,
+        0
+      ],
+      [
+        0,
+        0,
+        97
+      ]
+    ],
+    "classification_report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 132.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 214.0
+      },
+      "2": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 97.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 443.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 443.0
+      }
     },
-    {
-      "model": "RandomForestRegressor",
-      "MAE": 1.845,
-      "RMSE": 2.479,
-      "R2": 0.919
+    "metrics": [
+      {
+        "model": "KNN",
+        "Akurasi": 0.9458,
+        "Precision": 0.9466,
+        "Recall": 0.9474,
+        "F1": 0.947,
+        "CV_F1_mean": 0.9109,
+        "CV_F1_std": 0.008,
+        "fit_seconds": 0.003,
+        "inference_ms": 0.0503,
+        "ROC_AUC_OvR": 0.9899
+      },
+      {
+        "model": "SVM",
+        "Akurasi": 0.6862,
+        "Precision": 0.5354,
+        "Recall": 0.5606,
+        "F1": 0.5219,
+        "CV_F1_mean": 0.5002,
+        "CV_F1_std": 0.0122,
+        "fit_seconds": 0.495,
+        "inference_ms": 0.1344,
+        "ROC_AUC_OvR": 0.9979
+      },
+      {
+        "model": "Naive Bayes",
+        "Akurasi": 1.0,
+        "Precision": 1.0,
+        "Recall": 1.0,
+        "F1": 1.0,
+        "CV_F1_mean": 0.9987,
+        "CV_F1_std": 0.0011,
+        "fit_seconds": 0.002,
+        "inference_ms": 0.006,
+        "ROC_AUC_OvR": 1.0
+      },
+      {
+        "model": "Random Forest",
+        "Akurasi": 1.0,
+        "Precision": 1.0,
+        "Recall": 1.0,
+        "F1": 1.0,
+        "CV_F1_mean": 0.9994,
+        "CV_F1_std": 0.0012,
+        "fit_seconds": 0.165,
+        "inference_ms": 0.0612,
+        "ROC_AUC_OvR": 1.0
+      },
+      {
+        "model": "XGBoost",
+        "Akurasi": 1.0,
+        "Precision": 1.0,
+        "Recall": 1.0,
+        "F1": 1.0,
+        "CV_F1_mean": 1.0,
+        "CV_F1_std": 0.0,
+        "fit_seconds": 0.255,
+        "inference_ms": 0.0148,
+        "ROC_AUC_OvR": 1.0
+      }
+    ]
+  },
+  "clustering": {
+    "algorithm": "StandardScaler + KMeans (k=2)",
+    "k_selection": "silhouette maksimal dalam rentang interpretabel k=2..4 (mikroklimat kontinu)",
+    "n_clusters": 2,
+    "silhouette_score": 0.235,
+    "global_means": {
+      "suhu": 27.07,
+      "kelembapan": 64.76,
+      "tds": 598.87,
+      "ph": 6.4
+    },
+    "elbow_silhouette": [
+      {
+        "k": 2,
+        "inertia": 6867.23,
+        "silhouette": 0.235
+      },
+      {
+        "k": 3,
+        "inertia": 5853.26,
+        "silhouette": 0.2068
+      },
+      {
+        "k": 4,
+        "inertia": 5144.79,
+        "silhouette": 0.221
+      },
+      {
+        "k": 5,
+        "inertia": 4506.81,
+        "silhouette": 0.2197
+      },
+      {
+        "k": 6,
+        "inertia": 3990.34,
+        "silhouette": 0.228
+      },
+      {
+        "k": 7,
+        "inertia": 3611.31,
+        "silhouette": 0.2391
+      },
+      {
+        "k": 8,
+        "inertia": 3262.66,
+        "silhouette": 0.2469
+      }
+    ],
+    "profiles": {
+      "0": {
+        "count": 1295,
+        "avg_suhu": 31.1,
+        "avg_kelembapan": 64.9,
+        "avg_tds": 598.5,
+        "avg_ph": 6.4,
+        "description": "Hangat (transpirasi tinggi) \u2022 Kelembapan Normal \u2022 Nutrisi Ideal"
+      },
+      "1": {
+        "count": 918,
+        "avg_suhu": 21.4,
+        "avg_kelembapan": 64.6,
+        "avg_tds": 599.4,
+        "avg_ph": 6.39,
+        "description": "Sejuk \u2022 Kelembapan Normal \u2022 Nutrisi Ideal"
+      }
     }
-  ]
+  }
 }
