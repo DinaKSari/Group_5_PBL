@@ -134,9 +134,13 @@ baru tidak bisa dipasang di HP yang sudah menerima versi lama.
 `tool/build_release.ps1` membaca `version:` dari `pubspec.yaml`, mengopernya ke aplikasi
 lewat `--dart-define=APP_VERSION=...` (angka pembanding Remote Config tidak boleh berasal
 dari tempat lain), menolak build kalau `key.properties` belum ada (kecuali
-`-AllowDebugSigning`), lalu memverifikasi sertifikat APK dengan `keytool -printcert`.
+`-AllowDebugSigning`), lalu memverifikasi tanda tangan APK dengan **`apksigner verify
+--print-certs`** dari Android SDK build-tools. `keytool -printcert -jarfile` tidak dipakai
+lagi: APK Flutter ditandatangani scheme v2 tanpa signature v1/JAR, sehingga keytool membalas
+"Not a signed jar file" dengan exit 0 dan mudah disalahartikan sebagai "lulus".
 Artefak: `build/app/outputs/flutter-apk/app-release.apk` — APK, bukan AAB, karena AAB tidak
-bisa di-sideload.
+bisa di-sideload. Rilis pertama 2026-11-16: 55,8 MB, `Signer #1 certificate DN:
+CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`.
 
 Base URL APK rilis diambil dari Remote Config (`api_base_url`) dan jatuh ke
 `ApiConfig.releaseDefault` (tunnel kelas) kalau Remote Config belum diset; `minify` dan

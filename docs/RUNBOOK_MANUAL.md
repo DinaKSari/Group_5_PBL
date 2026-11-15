@@ -188,52 +188,83 @@ di LAN tetap bisa dipaksa kembali ke laptop.
 ---
 
 ## R5 — Keystore release
-**Memblokir: M3** · ±15 menit · **jangan lanjut tanpa backup**
+**Memblokir: M3** · ±15 menit · ✅ **M3 TERBUKA 2026-11-16** — keystore jadi, `app-release.apk`
+55,8 MB bertanda tangan `CN=LettuGrow` (apksigner); sisa = langkah 3 (cadangan di luar laptop)
 
 Passphrase dibuat oleh kalian, bukan oleh saya — dan jangan sampai hanya saya yang memegangnya.
 Skripnya sudah ada di repo; tidak perlu mengetik `keytool` manual.
 
-- [ ] 1. Generate (dari folder `smart_farming`):
+- [x] 1. **Generate selesai 2026-11-16** (dari folder `smart_farming`):
 
   ```powershell
   powershell -ExecutionPolicy Bypass -File tool\make_keystore.ps1
   ```
 
-  Ditanya: folder tujuan (default `%USERPROFILE%\.android`), nama file
-  (`letugrow-release.keystore`), alias (default `letugrow`), lalu passphrase **2×** lewat
-  `Read-Host -AsSecureString`. Passphrase tidak pernah tercetak, tidak masuk argemen baris
-  perintah (dioper ke `keytool` via environment proses anak), dan tidak perlu dikirim ke chat.
-  Sudah diverifikasi syntax-nya di PowerShell 5.1 dan menolak jalan kalau keystore lama akan
-  tertimpa tanpa `-Force`.
-- [ ] 2. Skrip otomatis menulis `smart_farming/android/key.properties` dan menjalankan
-      `git check-ignore -v` untuk file itu (dan untuk keystore kalau di dalam repo) — **berhenti
-      dengan error** kalau ada yang terlacak git. Aturan `.gitignore`-nya sudah terverifikasi aktif
-      (`smart_farming/android/.gitignore:13` = `key.properties`, `:14` = `**/*.keystore`).
-- [ ] 3. **Salin file `.keystore` ke satu lokasi di luar laptop** (flashdisk / cloud pribadi).
-      Skrip menampilkan jalurnya dan menahan diri di prompt `Read-Host` sampai kalian menekan
-      ENTER setelah menyalinnya. Tanpa langkah ini: laptop hilang/partisi = semua user
-      uninstall + install ulang APK.
-- [ ] 4. Build APK rilis:
+  Hasil: `C:\Users\server\.android\letugrow-release.keystore` (PKCS12, RSA 2048), alias
+  `letugrow`, `PrivateKeyEntry`, Owner `CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`,
+  berlaku 16 Nov 2026 → **3 Apr 2054**.
+  Fingerprint SHA-256 keystore:
+  `12:67:ED:21:7E:16:F2:C1:2B:60:D1:BC:1B:F7:15:A8:4C:1F:97:3B:00:97:1F:7B:2E:5A:EE:00:5B:88:15:C4`
+  Passphrase 20 karakter, diketik sendiri oleh pengelola lewat `Read-Host -AsSecureString` —
+  tidak pernah tercetak, tidak pernah masuk argemen baris perintah, tidak pernah lewat chat.
+  ⚠️ Bug yang ditemukan & diperbaiki (`929c9d1`): langkah pemeriksaan anti-bocor mati oleh
+  stderr git (`ls-files --error-unmatch` menulis "did not match any file(s)" justru saat file
+  **tidak** terlacak, dan `ErrorActionPreference='Stop'` menaikkan itu jadi error fatal).
+  Efeknya hanya langkah konfirmasi + prompt cadangan yang tidak tampil — keystore &
+  `key.properties` sudah terbentuk benar. Kalau skrip kalian menampilkan error yang sama,
+  itu sudah diperbaiki di commit tersebut; jalankan ulang dengan `-Force` hanya kalau kalian
+  **sudah** merelakan keystore lama (lihat langkah 3).
+- [x] 2. **Terverifikasi 2026-11-16**: `smart_farming/android/key.properties` tertulis
+      (`storeFile`, `storeType=PKCS12`, `keyAlias=letugrow`, `storePassword`, `keyPassword`) dan
+      `git check-ignore -v` → `smart_farming/android/.gitignore:13:key.properties`;
+      `git ls-files android/key.properties` kosong = tidak terlacak. Keystore ada di luar repo
+      (`%USERPROFILE%\.android`), jadi tidak mungkin ikut ter-commit. `git status` bersih dari
+      file rahasia. **Nilai passphrase tidak pernah dibaca/dicetak** — verifikasi memakai
+      `keytool -storepass:env` dengan passphrase diambil dari file.
+- [ ] 3. **SATU-SATUNYA YANG BELUM: salin `C:\Users\server\.android\letugrow-release.keystore`
+      ke lokasi di luar laptop** (flashdisk / cloud pribadi). Prompt `Read-Host` yang biasanya
+      menahan kalian di langkah ini tidak sempat tampil karena bug di langkah 1, jadi ini
+      benar-benar harus kalian lakukan manual sekarang. Cocokkan fingerprint di atas dengan
+      file salinan kalian. Tanpa salinan ini: laptop hilang/partisi/keystore korup = semua user
+      uninstall + install ulang APK, dan riwayat di HP mereka tidak bisa disambung.
+      Simpan passphrase di password manager kampus **terpisah** dari file keystore-nya.
+- [x] 4. **Build APK rilis selesai 2026-11-16** (`tool\build_release.ps1`, exit 0):
+      `smart_farming\build\app\outputs\flutter-apk\app-release.apk` — **55,8 MB**,
+      Gradle `assembleRelease` 18,8 s (build penuh pertama 176,7 s). `version: 1.0.0+1` dari
+      `pubspec.yaml` diteruskan sebagai `--dart-define=APP_VERSION=1.0.0`; `key.properties`
+      terbaca sehingga `signingConfigs.release` dipakai, bukan fallback debug.
+      Peringatan tak berbahaya: `firebase_auth`/`firebase_core`/`firebase_remote_config` masih
+      memakai Kotlin Gradle Plugin lama (akan dihapus Flutter di masa depan), dan font asset
+      ter-tree-shake (normal untuk rilis).
+- [x] 5. **Bukti tanda tangan (apksigner, bukan keytool)**:
 
   ```powershell
-  powershell -ExecutionPolicy Bypass -File tool\build_release.ps1
+  & "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\apksigner.bat" verify --verbose --print-certs `
+      build\app\outputs\flutter-apk\app-release.apk
   ```
 
-  Membaca `version:` dari `pubspec.yaml` → `--dart-define=APP_VERSION=...` (pembanding
-  `minimum_supported_version` Remote Config), output
-  `smart_farming\build\app\outputs\flutter-apk\app-release.apk`.
-  `android/app/build.gradle.kts` memakai `key.properties` kalau ada, dan jatuh kembali ke
-  signing debug kalau tidak — jadi build hari ini tidak pernah rusak karena langkah ini.
-- [ ] 5. Bukti sertifikat release (saya yang jalankan, kalian boleh ulangi):
-
-  ```powershell
-  & "$env:JAVA_HOME\bin\keytool.exe" -printcert -jarfile build\app\outputs\flutter-apk\app-release.apk
+  ```
+  Verifies
+  Verified using v2 scheme (APK Signature Scheme v2): true
+  Signer #1 certificate DN: CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID
+  Signer #1 certificate SHA-256 digest: 1267ed217e16f2c12b60d1bc1bf715a84c1f973b00971f7b2e5aee005b8815c4
+  Signer #1 key algorithm: RSA, key size 2048 bits
   ```
 
-  Harus muncul `CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`. Kalau yang muncul
-  `CN=Android Debug`, `key.properties` tidak terbaca.
-- [ ] 6. Kirim ke saya: **path keystore + alias**, dan konfirmasi langkah 2 tidak menemukan
-      file rahasia yang terlacak git. **Jangan kirim passphrase** — saya baca dari file saat build.
+  SHA-256 signer **sama persis** dengan fingerprint keystore di langkah 1 → APK ini ditandatangani
+  kunci kelompok, dan hanya ada 1 signer. ⚠️ `keytool -printcert -jarfile` TIDAK bisa dipakai untuk
+  bukti ini: APK Flutter ditandatangani scheme v2 tanpa v1/JAR, jadi keytool membalas
+  "Not a signed jar file" dengan exit 0. Checks itu pernah menghasilkan `[OK]` palsu dan sudah
+  diganti apksigner di `tool\build_release.ps1`.
+- [x] 6. Path + alias sudah di tangan saya dan tercatat di atas: keystore
+      `%USERPROFILE%\.android\letugrow-release.keystore`, alias `letugrow`. Passphrase tidak
+      pernah dikirim ke chat.
+
+Konsekuensi yang perlu kalian ingat: `applicationId` sekarang `com.lettgrow.app` dan APK lama
+ber-package `com.kelompok5.smart_farming` adalah app berbeda, sedangkan APK debug dengan package
+sama tidak bisa ditimpa oleh APK rilis (tanda tangan beda → `INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+Sebelum install ke HP: `adb uninstall com.lettgrow.app` dulu.
+
 
 
 ---

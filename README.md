@@ -661,7 +661,7 @@ perangkat/keystore milik manusia (lihat `docs/RUNBOOK_MANUAL.md` R7).
 | TC-023 | Entri manual valid → `POST /api/sensor` | Body memakai nama kolom kontrak ML + `source: "manual"`; 201 = sukses, dashboard ikut ter-invalidate |
 | TC-024 | Entri manual saat mode Tamu / sesi kedaluwarsa / server mati / server menggantung | `AuthFailure` (sebelum request), `AuthFailure` 401, `NetworkFailure`, `ServerFailure` berbatas waktu — bukan exception mentah |
 | TC-025 | Rangkaian penyalaan server (`deploy/start_tunnel.ps1`) idempoten di atas Laragon yang sudah jalan | MySQL → Flask → Laravel → ngrok muncul berurutan di `deploy/logs/`; `-Status` tidak mengubah apa pun |
-| TC-026 | APK release ditandatangani keystore kelompok | `keytool -printcert -jarfile` = `CN=LettuGrow`, bukan `CN=Android Debug` |
+| TC-026 | APK release ditandatangani keystore kelompok | `apksigner verify --print-certs` = `Signer #1 certificate DN: CN=LettuGrow` + scheme v2 `true`; **bukan** `CN=Android Debug`. (`keytool -printcert -jarfile` tidak berlaku: APK Flutter tidak memakai signature v1/JAR) |
 | TC-027 | Build rilis hanya HTTPS | `usesCleartextTraffic` hanya ada di `src/debug/AndroidManifest.xml` |
 
 ---

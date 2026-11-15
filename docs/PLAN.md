@@ -228,10 +228,18 @@ dan user melihat status yang benar selama downtime.
 
 ## 9. M3 — Build APK release · 1 hari
 
+**Status 2026-11-16: M3 SELESAI di sisi build.** `tool/build_release.ps1` menghasilkan
+`build/app/outputs/flutter-apk/app-release.apk` **55,8 MB** dan `apksigner verify --print-certs`
+membuktikan `Signer #1 certificate DN: CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`,
+scheme v2 `true`, SHA-256 `1267ed21...5b8815c4` = fingerprint keystore (1 signer). Yang tersisa
+hanya empiris: pasang ke HP lewat 4G (RUNBOOK R7) + cadangan keystore di luar laptop (R5 langkah 3).
+
 - [x] Keystore release menggantikan `signingConfigs.getByName("debug")` — `79eb092`:
       `build.gradle.kts` membaca `android/key.properties` (ter-gitignore) dan memakai
       `signingConfigs.release` hanya kalau isinya ada, fallback debug supaya dev tidak rusak.
-      Pembuatannya `smart_farming/tool/make_keystore.ps1` (RUNBOOK R5).
+      Pembuatannya `smart_farming/tool/make_keystore.ps1` (RUNBOOK R5) — **dijalankan 2026-11-16**
+      oleh pengelola dengan passphrase diketik sendiri (`Read-Host -AsSecureString`, 20 karakter,
+      tidak pernah tercetak/dikirim).
 - [ ] `isMinifyEnabled` / `isShrinkResources` + proguard rules — **ditunda sadar**: rules R8 untuk
       firebase_messaging/firebase_remote_config hanya bisa dibuktikan di perangkat, dan build yang
       gagal diam-diam lebih mahal daripada APK yang sedikit lebih besar (`79eb092`).
@@ -307,8 +315,9 @@ terpasang dan berfungsi di device nyata lewat 4G.
       mem-forward 8000 saja)
 - [x] DB = MySQL (pindah `ae096d4` + migrasi data teruji) dan `APP_DEBUG=false` dipaksa
       `deploy/start_tunnel.ps1`; probe `GET /api/sensor/latest` membalas JSON 401, bukan stack trace
-- [ ] APK release ditandatangani keystore sendiri (R5 = kalian), `usesCleartextTraffic` **sudah**
-      pindah ke `src/debug/` (`79eb092`) sehingga rilis hanya HTTPS
+- [x] APK release ditandatangani keystore sendiri (R5 jalan 2026-11-16; apksigner:
+      `CN=LettuGrow`, scheme v2, 1 signer — bukti lengkap di RUNBOOK R5 langkah 5),
+      `usesCleartextTraffic` **sudah** pindah ke `src/debug/` (`79eb092`) sehingga rilis hanya HTTPS
 - [ ] Restart laptop → layanan pulih tanpa perintah manual — task `LettuGrow Tunnel` **sudah
       terdaftar & lulus uji proxy** 2026-11-16 (rangkaian dimatikan, `Start-ScheduledTask`
       menghidupkan Flask+Laravel+ngrok lagi dalam 12 detik, `/up` publik 200). Centang terakhir
@@ -522,6 +531,9 @@ sampai ke perangkat, APK rilis HTTPS-only, nama LettuGrow), dan rotasi `NGROK_AU
 `ADMIN_PASSWORD` / `FLASK_ML_SHARED_SECRET`.
 Build release sesungguhnya (`tool\build_release.ps1`) baru bisa diverifikasi setelah keystore ada;
 di luar itu, satu-satunya cara membuktikan APK benar-benar berfungsi adalah HP.
+**Update 2026-11-16: keystore sudah dibuat (R5) dan `app-release.apk` 55,8 MB terbukti
+bertanda tangan `CN=LettuGrow` lewat apksigner — lihat sub-bagian R5 di bawah. Yang tinggal
+hanya HP (R7) dan cadangan keystore di luar laptop.**
 
 **Bukti QA yang ikut diperbarui (commit dokumen ini)**
 
@@ -572,6 +584,35 @@ Tiga temuan yang wajib kalian tahu:
    autentik tanpa ada yang login.
 
 Sisa yang benar-benar masih menunggu manusia: reboot sungguhan (hanya membuktikan hal yang sama
-di kondisi boot nyata), R4 publish Remote Config, R5 keystore, R6 UptimeRobot + backup, R7
-13 uji di HP, dan R10 rotasi — terutama `ADMIN_PASSWORD`, karena sekarang panel admin ikut
-terbawa hidup setiap kali laptop menyala.
+di kondisi boot nyata), R4 publish Remote Config, **cadangan keystore ke luar laptop**
+(R5 langkah 3 — satu-satunya bagian R5 yang belum), R6 UptimeRobot + backup, R7 13 uji di HP,
+dan R10 rotasi — terutama `ADMIN_PASSWORD`, karena sekarang panel admin ikut terbawa hidup
+setiap kali laptop menyala.
+
+**R5 dieksekusi + APK rilis pertama (2026-11-16) — M3 terbuka**
+
+`tool/make_keystore.ps1` dijalankan dan **passphrase diketik langsung oleh pengelola** lewat
+prompt `Read-Host -AsSecureString`; nilainya tidak pernah tercetak, tidak pernah masuk argemen
+baris perintah, dan tidak pernah lewat chat. Saya hanya membacanya dari `android/key.properties`
+ke environment proses anak `keytool` untuk menguji bahwa passphrase itu cocok.
+
+| Barang | Bukti |
+|---|---|
+| Keystore | `%USERPROFILE%\.android\letugrow-release.keystore`, PKCS12, 1 entry `letugrow` (PrivateKeyEntry), RSA 2048, Owner `CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`, berlaku 2026-11-16 → **2054-04-03** |
+| Fingerprint | SHA-256 `12:67:ED:21:7E:16:F2:C1:2B:60:D1:BC:1B:F7:15:A8:4C:1F:97:3B:00:97:1F:7B:2E:5A:EE:00:5B:88:15:C4` |
+| `key.properties` | tertulis + `git check-ignore -v` → `android/.gitignore:13`; `git ls-files` kosong; keystore di luar repo |
+| APK | `smart_farming/build/app/outputs/flutter-apk/app-release.apk` **55,8 MB**, `assembleRelease` 18,8 s (build penuh 176,7 s), `APP_VERSION=1.0.0` dari `pubspec.yaml` |
+| Tanda tangan | `apksigner verify --print-certs`: `Verifies`, scheme **v2 true**, `Signer #1 certificate DN: CN=LettuGrow...`, SHA-256 `1267ed21...5b8815c4` = fingerprint keystore, 1 signer |
+
+Satu temuan yang wajib dicatat karena menyangka kejujuran verifikasi: blok lama
+`build_release.ps1` memakai `keytool -printcert -jarfile`, yang untuk APK Flutter membalas
+"Not a signed jar file" dengan **exit 0** (APK ditandatangani scheme v2 tanpa signature v1/JAR),
+sehingga skrip mencetak `[OK] Sertifikat rilis terbaca (bukan debug)` tanpa bukti apa pun.
+Itu saya ganti ke `apksigner` dan `Write-Ok` sekarang hanya keluar kalau DN-nya benar-benar
+`CN=LettuGrow`; kalau `apksigner` tidak ditemukan, skrip berhenti dengan peringatan manual,
+bukan `[OK]`. Perbaikan ini ada di commit `docs(runbook)` berikutnya bersama RUNBOOK R5.
+
+Konsekuensi install yang harus diketahui sebelum R7: APK debug lama ber-package sama tidak bisa
+ditimpa APK rilis (tanda tangan berbeda → `INSTALL_FAILED_UPDATE_INCOMPATIBLE`), jadi
+`adb uninstall com.lettgrow.app` dulu. Dan sampai cadangan keystore ada di luar laptop,
+seluruh jalur upgrade user bergantung pada satu file di satu mesin.

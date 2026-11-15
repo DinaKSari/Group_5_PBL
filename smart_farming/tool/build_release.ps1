@@ -83,21 +83,56 @@ $item = Get-Item $apkPath
 Write-Ok "APK: $apkPath  ($([math]::Round($item.Length / 1MB, 1)) MB, $($item.LastWriteTime))"
 
 Write-Step 'Verifikasi sertifikat'
-$keyTool = $null
-if ($env:JAVA_HOME) { $keyTool = Join-Path $env:JAVA_HOME 'bin/keytool.exe' }
-if (-not $keyTool -or -not (Test-Path $keyTool)) { $keyTool = 'C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe' }
-if (Test-Path $keyTool) {
-    $cert = & $keyTool '-printcert' '-jarfile' $apkPath 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "keytool tidak bisa membaca tanda tangan APK (mungkin hanya signing v2). Cek manual: $apkPath"
-    } elseif ($cert -match 'CN=Android Debug') {
-        Write-Warning 'APK ini bertanda tangan DEBUG. Jangan diedarkan ke user.'
-    } else {
-        ($cert | Select-Object -First 6) | Out-Host
-        Write-Ok 'Sertifikat rilis terbaca (bukan debug).'
+# keytool -printcert -jarfile HANYA membaca signature v1 (JAR). Flutter menandatangani
+# APK dengan scheme v2/v3 tanpa v1, jadi keytool membalas "Not a signed jar file" dengan
+# exit 0 - kalau itu dianggap lulus, skrip ini mengklaim sukses tanpa bukti apa pun.
+# Satu-satunya alat yang benar adalah apksigner dari build-tools.
+function Find-ApkSigner {
+    $roots = @()
+    if ($env:ANDROID_HOME) { $roots += $env:ANDROID_HOME }
+    if ($env:ANDROID_SDK_ROOT) { $roots += $env:ANDROID_SDK_ROOT }
+    $roots += (Join-Path $env:LOCALAPPDATA 'Android\Sdk')
+    foreach ($root in $roots) {
+        $bt = Join-Path $root 'build-tools'
+        if (-not (Test-Path $bt)) { continue }
+        $found = Get-ChildItem -Path $bt -Filter 'apksigner.bat' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+        if ($found) { return $found.FullName }
     }
+    return $null
+}
+
+$apkSigner = Find-ApkSigner
+if (-not $apkSigner) {
+    Write-Warning @'
+apksigner.bat tidak ditemukan di Android SDK. build-release TETAP berhasil, tapi tanda
+tangan APK BELUM terbukti. Cek manual (ganti path sesuai build-tools kalian):
+  & "<sdk>\build-tools\36.0.0\apksigner.bat" verify --verbose --print-certs "<apk>"
+Lulus kalau: "Verifies" + "Signer #1 certificate DN: CN=LettuGrow".
+'@
 } else {
-    Write-Warning 'keytool tidak ditemukan; verifikasi sertifikat dilakukan manual.'
+    $cert = & $apkSigner 'verify' '--verbose' '--print-certs' $apkPath 2>&1
+    $certText = ($cert | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "apksigner menolak APK ini (exit $LASTEXITCODE). APK tidak layak edar.`n$certText"
+    } elseif ($certText -match 'CN=Android Debug') {
+        Write-Warning 'APK ini bertanda tangan DEBUG. Jangan diedarkan ke user - key.properties tidak terbaca Gradle.'
+    } elseif ($certText -notmatch 'Signer #1 certificate DN:') {
+        Stop-WithError 'apksigner bilang valid tapi tidak menampilkan signer - periksa ulang APK-nya.'
+    } else {
+        $dn = ($cert | Where-Object { $_ -match 'Signer #1 certificate DN:' } | Select-Object -First 1)
+        $sha = ($cert | Where-Object { $_ -match 'Signer #1 certificate SHA-256 digest:' } | Select-Object -First 1)
+        ($dn + '').Trim() | Out-Host
+        ($sha + '').Trim() | Out-Host
+        $v2 = ($certText -match 'Verified using v2 scheme \(APK Signature Scheme v2\): true')
+        Write-Host "  scheme v2: $v2"
+        if ($dn -match 'CN=LettuGrow') {
+            Write-Ok 'APK bertanda tangan sertifikat release kelompok (CN=LettuGrow).'
+            Write-Host "  SHA-256 di atas HARUS sama dengan fingerprint keystore - cocokkan dengan catatan R5." -ForegroundColor DarkGray
+        } else {
+            Write-Warning "DN signer bukan CN=LettuGrow ('$($dn.Trim())'). APK ini mungkin memakai keystore lain."
+        }
+    }
 }
 
 Write-Host ''
