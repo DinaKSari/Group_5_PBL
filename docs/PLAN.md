@@ -70,6 +70,12 @@ Kondisi saat ini **belum** layak untuk user, bukan karena kurang fitur, tapi kar
 - **Artefak model tidak lengkap di git.** `ML/api/app.py:31-32,53-54` memuat `classifier.joblib`
   & `cluster.joblib`, yang keduanya tidak ter-commit → clone fresh membuat `cls_model`/`cluster_model`
   `None` dan prediksi degradasi diam-diam. `requirements.txt` tidak memuat `xgboost` dan `matplotlib`.
+  → **Dua-duanya ditutup 2026-11-16**: `classifier.joblib` + `cluster.joblib` + `features.json` ikut
+  ter-commit (`4f25acf`), dan `requirements.txt` dipin ulang ke versi yang *membuat & memuat* artefak
+  itu — numpy 2.2.6 (artefak dipickle memakai modul `numpy._core`, jadi pin lama `numpy==1.26.4`
+  mustahil memuatnya), xgboost 3.2.0 (wajib ada walau tidak di-import `app.py`, karena unpickle
+  `XGBClassifier` butuhnya), plus matplotlib 3.10.9 untuk `train.py` dan flask/flask-cors/joblib
+  mengikuti lingkungan lokal yang sudah terbukti jalan.
 - ✅ **SELESAI M1.7: Kredensial default** `admin@gmail.com / 12345678` dihapus dari seeder;
   admin Filament kini dibuat dari `ADMIN_EMAIL`/`ADMIN_PASSWORD` di `.env` (seeder menolak jalan
   kalau kosong atau < 12 karakter). `APP_NAME` sudah `LettuGrow`, `APP_DEBUG` diberi peringatan
@@ -129,12 +135,15 @@ operasional**. Keputusan ini tetap milik kalian karena mengubah klaim bab IoT di
 
 ## 5. M0 — Bersih-bersih repo & dokumen · ½ hari
 
-- [ ] Copot artefak build & file internal dari git: `smart_farming/android/build/reports/**`,
+- [x] Copot artefak build & file internal dari git: `smart_farming/android/build/reports/**`,
       `ML/api/__pycache__/`, `smart_farming/backend/AGENTS.md`, `smart_farming/backend/CLAUDE.md`
-      (butuh izin, lihat RUNBOOK R8).
-- [ ] Commit ±27 file modified + untracked yang menggantung, **dipecah per milestone**, bukan `git add -A`.
-- [ ] Lengkapi `ML/api/requirements.txt` (`xgboost`, `matplotlib`, pin versi) dan commit
-      `ML/api/artifacts/classifier.joblib` + `cluster.joblib`.
+      — **selesai 2026-11-16** (`bf94ac0`), plus `.gitignore` & `.gitattributes` di root repo.
+- [x] Commit ±27 file modified + untracked yang menggantung, **dipecah per milestone**, bukan `git add -A`
+      — **selesai 2026-11-16**: 5 commit (`bf94ac0`, `4f25acf`, `58c690b`, `bdab2d3`, `db34ddd`),
+      semua di branch lokal `feature-backend-integration`, **belum di-push**.
+- [x] Lengkapi `ML/api/requirements.txt` (`xgboost`, `matplotlib`, pin versi) dan commit
+      `ML/api/artifacts/classifier.joblib` + `cluster.joblib` — **selesai 2026-11-16**; pin
+      mengikuti lingkungan yang dipakai melatih (lihat catatan §3).
 - [ ] File dokumen baru: `LICENSE`, `CHANGELOG.md`, `PRIVACY_POLICY.md`, `docs/DEPLOYMENT.md`,
       `docs/USER_MANUAL.md`.
 - [ ] Isi `ML/README.md` (saat ini satu baris) dan ganti `backend/README.md` boilerplate Laravel.
@@ -180,13 +189,13 @@ client (Laravel 29 tes + Flutter 31 tes hijau), mode Tamu read-only ditegakkan d
 
 | Pekerjaan | Catatan |
 |---|---|
-| Migrasi `DB_CONNECTION=mysql` | `backend/config/database.php:20` sekarang default `sqlite`. Ini penutup risiko **korupsi data** saat laptop mati tidak bersih |
-| Pindahkan `SESSION_DRIVER` / `CACHE_STORE` / `QUEUE_CONNECTION` dari `database` | `backend/.env.example:34,42,44`; Redis sudah tersedia di Laragon |
+| ✅ Migrasi `DB_CONNECTION=mysql` | **Selesai 2026-11-16** — `smart_farming` (utf8mb4_unicode_ci) jadi DB aktif; schema dibuat lewat `php artisan migrate --force`, lalu 75 baris data lama dipindah utuh (id & timestamp dipertahankan) oleh `tool/migrate_sqlite_to_mysql.php`. Menutup risiko **korupsi data** saat laptop mati tidak bersih. Backup SQLite asli: `backend/storage/app/private/backup-sqlite-2026-11-16.sqlite` (ter-gitignore) |
+| ✅ Pindahkan `SESSION_DRIVER` / `CACHE_STORE` dari `database` | **Selesai 2026-11-16** → `file`. `QUEUE_CONNECTION` sengaja tetap `database` (belum ada consumer; Redis tidak berjalan di laptop ini, dan tabel `jobs` lokal kosong sehingga tidak ada yang tertinggal) |
 | `API_BASE_URL` diambil dari **Firebase Remote Config** | menggantikan `lib/config/api_config.dart:10-12`; bonus: pindah ngrok ↔ VPS tanpa rebuild APK, plus `minimum_supported_version` |
 | nyalakan `ngrok http 8000` → dev domain gratis `https://craftily-handcraft-outboard.ngrok-free.dev` | ⚠️ **Jangan** pakai "Create Domain" — *reserved static domain* itu fitur **berbayar**. Dev domain otomatis & tidak berubah saat restart. Agent harus ≥3.29 (Laragon bawa 3.1.0 → sudah di-update ke 3.39.13) |
 | **Hemat kuota ngrok free (20.000 req/bulan, 1 GB/bulan)** | Endpoint agregat `GET /api/dashboard` (sensor + prediksi terakhir = 1 request, menggantikan 2 request di `monitoring_service.dart:65-66`); provider jangan auto-dispose agar pindah tab tidak fetch ulang; **dilarang** polling `<Timer.periodic>`; tambah header `ngrok-skip-browser-warning` + User-Agent app |
 | `/up` (Laravel, `bootstrap/app.php:13`) dan `/health` (Flask, `ML/api/app.py:92`) menjadi target health check & monitoring | dipakai M2.5 |
-| Putuskan `/devices` Flask | `ML/api/app.py:167` sekarang no-op (echo sukses tanpa menyimpan) → implementasi atau hapus |
+| ✅ Putuskan `/devices` Flask | **Dihapus 2026-11-16** bersama pengerasan M1.6 — route no-op yang cuma meniru endpoint Laravel (`POST /api/devices` milik app tetap ada di `DeviceController@store`) |
 | Prosedur VPS/nginx/LE **dipindah** ke lampiran `docs/DEPLOYMENT.md` | bukan hilang, hanya ditunda (§9) |
 
 **DoD**: HP memakai 4G (bukan Wi-Fi kampus) berhasil registrasi → prediksi → melihat riwayat.
@@ -359,3 +368,69 @@ hasil model nyata (`days_left: 25`, cluster 1), `/health` → 200; proses probe 
 `FLASK_ML_SHARED_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` (file ter-gitignore), `APP_NAME` →
 `LettuGrow`; `APP_DEBUG` masih `true` dan **wajib false sebelum ngrok dibuka** (M2).
 
+
+---
+
+## 18. Log progres M2 (sebagian) — 2026-11-16 (SQLite → MySQL + pin Python)
+
+**Yang berpindah.** `smart_farming/backend/.env` sekarang `DB_CONNECTION=mysql` dengan
+`DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_DATABASE=smart_farming`, `DB_USERNAME=root`,
+`DB_PASSWORD=` (kosong — Laragon), plus `SESSION_DRIVER=file` dan `CACHE_STORE=file`.
+`config/database.php` tidak disentuh (blok `mysql`-nya sudah benar); `.env.example` mengikuti
+sebagai placeholder.
+
+**Urutan yang dijalankan** (diulang persis ini kalau perlu dari nol):
+
+```
+cd smart_farming/backend
+# 0. backup SQLite lama (sudah ada: storage/app/private/backup-sqlite-2026-11-16.sqlite)
+php artisan migrate --force                 # buat schema di DB smart_farming (9 migrasi, 0 baris)
+php ../../tool/migrate_sqlite_to_mysql.php            # dry-run, tidak menulis apa pun
+php ../../tool/migrate_sqlite_to_mysql.php --apply    # salin data
+"C:/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysqldump.exe" -u root --single-transaction \
+    smart_farming > storage/app/private/backup-mysql-2026-11-16.sql
+```
+
+`tool/migrate_sqlite_to_mysql.php` bersifat **idempotent & aman dipakai ulang**: tabel tujuan yang
+sudah berisi baris dilewati, hanya kolom yang sama-sama ada yang disalin, `id`/`created_at`/
+`updated_at` dipertahankan, `AUTO_INCREMENT` dinaikkan ke max+1, dan `cache`/`cache_locks`/`sessions`
+sengaja diabaikan karena driver-nya sudah pindah ke `file`.
+
+**Hasil verifikasi.**
+
+| Tabel | SQLite asal | MySQL setelah salin | AUTO_INCREMENT |
+|---|---|---|---|
+| `users` | 1 | 1 | 2 |
+| `predictions` | 18 | 18 (id 1–19, ada 1 gap lama) | 20 |
+| `sensor_readings` | 21 | 21 | 22 |
+| `activity_logs` | 31 | 31 | 32 |
+| `app_users` | 4 | 4 (id 2–5) | 6 |
+| **total tersalin** | | **75 baris** | |
+
+`php artisan test` **29 passed (90 assertions)**; `config('database.default')` = `mysql` dan
+model membaca jumlah yang sama lewat Eloquent; `predictions.ml_result` valid sebagai JSON
+(`JSON_VALID` = 1) dan cast array berfungsi (`stage=Vegetatif (Pembesaran)`, `days_left=15`);
+probe HTTP live: `/up` → 200, `POST /api/predict` tanpa token → 401 (bukan 500), server probe
+sudah dihentikan dan port 8000 kembali kosong.
+
+Dump-nya pun **teruji bisa di-restore**: dipulihkan ke DB scratch `zz_restore_probe` (18/21/31
+baris cocok), lalu DB scratch itu dihapus. DB kelas asli tidak pernah disentuh selama tes.
+
+**Pin Python (`ML/api/requirements.txt`).** Versi lama mustahil memuat artefak yang sekarang
+ter-commit: `model.joblib` dan `cluster.joblib` dipickle oleh numpy 2.x (byte-nya memanggil
+`numpy._core`, modul yang baru ada di numpy ≥ 2.0) sementara pin lama `numpy==1.26.4`; dan
+`classifier.joblib` adalah `xgboost.sklearn.XGBClassifier` yang tidak bisa di-unpickle tanpa
+paket xgboost — padahal `app.py:74-76` memuat model di level modul **tanpa `try`**, jadi
+`python app.py` langsung mati. Pin sekarang = lingkungan yang terbukti memuat ketiga model
+(diverifikasi lewat `joblib.load` langsung). Konsekuensi: **README/bab ML menyebut LinearRegression
+sebagai model regresi terpilih** (bukan XGBoost — XGBoost hanya pemenang klasifikasi), jadi
+kalau ada dokumen yang mengklaim "XGBoost untuk prediksi hari panen", itu yang perlu dikoreksi.
+
+**Cabang.** Semua pekerjaan M0–M2 ini ada di branch lokal **`feature-letugrow-m1-keamanan-mysql`**
+(dipercabangkan dari `feature-backend-integration`, 6 commit di depan `origin/main`).
+**Tidak ada satu pun yang di-push** — `origin` belum melihat kode ini, sesuai permintaan.
+
+**Belum selesai di M2**: `API_BASE_URL` dari Remote Config (RUNBOOK R4), menyalakan ngrok +
+konfirmasi dev domain (R2), `APP_DEBUG=false` sebelum tunnel dibuka, dan penguncian password
+`root` MySQL. Data lama kelas uji coba (`smoke-test-uid`, `perf-uid` di `predictions`) sengaja
+**tidak** saya hapus — bilang saja kalau mau dibersihkan sebelum user nyata masuk.

@@ -159,6 +159,10 @@ Passphrase dibuat oleh kalian, bukan oleh saya — dan jangan sampai hanya saya 
 - [ ] 2. Kabari saya dashboard-nya aktif (atau kirim URL-nya).
 - [ ] 3. Tentukan folder tujuan backup harian. Saya yang menulis job `mysqldump` + rotasinya;
       **lokasi di luar laptop** adalah keputusan kalian (item plan 2.5.7).
+      Backup pertama sudah ada dan sudah teruji: `smart_farming/backend/storage/app/private/backup-mysql-2026-11-16.sql`
+      (42 KB, 75 baris data kelas) + salinan SQLite sebelum migrasi di folder yang sama. Folder itu
+      di-gitignore, jadi **tugasmu hanya menyalinnya ke luar laptop**. Restore kalau perlu:
+      `mysql -u root smart_farming < nama-file.sql`.
 
 ---
 
@@ -185,14 +189,20 @@ menguji autostart dengan cara itu berisiko pada pekerjaan kalian yang belum ter-
 ## R8 — Persetujuan yang harus diucapkan sebelum saya jalan
 Saya tidak melakukan ini tanpa kalian bilang ya, karena tidak aman dibatalkan:
 
-- [ ] `git commit` / `git push` — saat ini ±27 file modified + beberapa untracked menunggu keputusan.
-- [ ] `git rm --cached` untuk `smart_farming/android/build/reports/**`, dan penghapusan
-      `smart_farming/backend/AGENTS.md` + `CLAUDE.md` (M0).
-- [ ] `composer require kreait/firebase-php` — mengubah `composer.json` + `composer.lock` (M1.1).
-- [ ] Menjalankan migrasi MySQL yang mengubah data di DB lokal (saya minta izin + `mysqldump` dulu).
+- [x] `git commit` / `git push` — **sudah dipakai untuk commit saja** (5 commit milestone + commit
+      MySQL ini). **`git push` tidak pernah dijalankan dan tidak akan saya jalankan tanpa izin baru**;
+      pekerjaan ada di branch lokal (lihat §18 `docs/PLAN.md`).
+- [x] `git rm --cached` untuk `smart_farming/android/build/reports/**`, dan penghapusan
+      `smart_farming/backend/AGENTS.md` + `CLAUDE.md` (M0) — selesai `bf94ac0`.
+- [x] `composer require kreait/firebase-php` — selesai (M1.1).
+- [x] Menjalankan migrasi MySQL yang mengubah data di DB lokal — selesai 2026-11-16
+      (`php artisan migrate --force` + `tool/migrate_sqlite_to_mysql.php --apply`).
+      `mysqldump` dan salinan SQLite-nya diambil **sebelum** menulis apa pun.
 - [ ] Menghentikan proses yang sedang berjalan (php / mysql / redis / ngrok) saat setel ulang service.
+      (Yang sudah terjadi hanya menghentikan web server probe milik saya sendiri; MySQL & ngrok
+      kalian tidak pernah saya sentuh.)
 - [ ] Menulis file baru ke repo: `LICENSE`, `CHANGELOG.md`, `PRIVACY_POLICY.md`,
-      `docs/DEPLOYMENT.md`, `docs/USER_MANUAL.md`, `docs/PLAN.md`.
+      `docs/DEPLOYMENT.md`, `docs/USER_MANUAL.md`. (`docs/PLAN.md` & runbook ini sudah ada.)
 
 ---
 
