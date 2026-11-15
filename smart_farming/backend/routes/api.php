@@ -17,8 +17,10 @@ Route::middleware('firebase.auth')->group(function () {
     Route::post('/predict', [PredictionController::class, 'store'])->middleware('throttle:30,1');
     Route::get('/predictions', [PredictionController::class, 'index'])->middleware('throttle:60,1');
 
-    Route::post('/sensor', [SensorController::class, 'store'])->middleware('throttle:120,1');
-    Route::get('/sensor/latest', [SensorController::class, 'latest'])->middleware('throttle:120,1');
+    // Entri sensor dilakukan manusia dengan tangan; 120x/menit cuma membuka pintu spam
+    // begitu laptop jadi publik lewat ngrok.
+    Route::post('/sensor', [SensorController::class, 'store'])->middleware('throttle:30,1');
+    Route::get('/sensor/latest', [SensorController::class, 'latest'])->middleware('throttle:60,1');
 
     Route::post('/devices', [DeviceController::class, 'store'])->middleware('throttle:30,1');
 });
