@@ -302,7 +302,7 @@ Laporkan hasilnya apa adanya. Kalau gagal, tulis "GAGAL + gejala" — itu lebih 
 | # | Tes | Cara | Lulus kalau | Hasil |
 |---|---|---|---|---|
 | 1 | 4G asli | Matikan Wi-Fi HP, install APK, login → prediksi | hasil muncul ≤ 10 detik | **TIDAK BISA DI HP UJI** — `EQFUD64HBIZDQKTW` tanpa SIM (`gsm.sim.state=ABSENT,ABSENT`); perlu HP lain ber-SIM. Semua request hari ini lewat Wi-Fi "Kos Rahman" ke URL publik yang sama |
-| 2 | Server mati | Close ngrok + `artisan serve`, lalu buka app | ada teks "server offline", **bukan** layar kosong | `[ ]` |
+| 2 | Server mati | Close ngrok + `artisan serve`, lalu buka app | ada teks "server offline", **bukan** layar kosong | **LULUS (kata pesannya perlu diperbaiki)** — 2026-11-16 lewat `deploy\logs\t2_outage.ps1`: satu klik UAC menghentikan task `\LettuGrow Tunnel` + men-taskill ngrok & php sesi-0, **menahan** keadaan mati sampai file `t2_resume.txt` (270 detik, publik balas 404), lalu menjalankan task kembali (pulih HTTP 200 dalam 41 detik). Di HP: Beranda = ikon awan-off + "Server mengembalikan respons yang tidak dapat dibaca." + tautan "Coba lagi"; Riwayat = spinner ±10 detik (`ApiClient.defaultTimeout`) lalu "Status 404" + tombol "Coba lagi". Tidak ada layar kosong/crash di tab mana pun, dan setelah stack hidup lagi kedua tombol itu mengembalikan data **tanpa menutup app** (Riwayat: 1 kartu "Bedeng Uji R7 / 25 HARI LAGI"; Beranda: "Live dari backend • Bedeng Uji R7 • 23:40", pH 6.0 / PPM 720 / 23 °C / 78 % semuanya Optimal). Yang belum lulus sebagai *pengalaman pengguna*: "Status 404" terlalu teknis dan beda dari kalimat Beranda |
 | 3 | **Reboot laptop** | Restart Windows, **jangan sentuh apa pun** selama 3 menit | app berfungsi lagi tanpa perintah manual | `[ ]` |
 | 4 | Lintas user | Akun B login di HP lain, coba buka riwayat A | ditolak 403 | `[ ]` |
 | 5 | Session kedaluwarsa | Diamkan app > 1 jam, lalu tarik data | auto-refresh atau logout, tidak hang | `[ ]` |
@@ -321,6 +321,21 @@ rangkaian dimatikan lalu `Start-ScheduledTask` menyalakan semuanya kembali dalam
 (`deploy\logs\autostart.log`). Yang tersisa di baris ini hanya pembuktiannya saat laptop memang
 perlu dinyalakan ulang: me-restart laptop demi tes akan mematikan sesi kerja kalian, jadi itu
 keputusan manusia, bukan tugas saya.
+
+Dua temuan yang muncul saat menjalankan tes #2 dan belum diperbaiki:
+
+1. **Probe kesehatan `start_tunnel.ps1` salah sasaran.** Script menguji `GET /up`, padahal `/up`
+   bukan rute API di app ini — ia menjawab **200 dengan halaman HTML welcome**. Akibatnya saat
+   penjaga menyalakan ulang barusan, script menyimpulkan "Laravel siap" sedangkan yang menjawab
+   port 8000 adalah `php -S 0.0.0.0:8000` milik konsol Laragon (PID 41460); Laravel yang seharusnya
+   dikelola script tidak ikut dinyalakan. Kalau jendela konsol itu ditutup, tunnel publik kehilangan
+   origin-nya sementara penjaga hanya memeriksa ngrok — tidak ada yang sadar. Perbaikan yang benar:
+   probe `GET /api/sensor/latest` (harus 401 JSON) dan cocokkan pemilik port dengan PID child yang
+   script start, bukan sekadar "port 8000 sibuk".
+2. **Cold start selalu mulai dari onboarding.** Setelah `am force-stop`, app membuka slide 1, lalu
+   "Lewati" membawa ke form login yang **kosong** — tidak ada opsi "lanjutkan sebagai akun terakhir",
+   padahal kredensial hanya diketahui manusia. Untuk pengguna yang sesinya masih berlaku di Firebase
+   ini terasa seperti logout paksa.
 
 ---
 
