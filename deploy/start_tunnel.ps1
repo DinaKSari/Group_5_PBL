@@ -13,6 +13,7 @@
     .\start_tunnel.ps1 -Status      # lihat apa yang hidup + URL publik, tanpa mengubah apa pun
     .\start_tunnel.ps1 -Stop        # hentikan Laravel/Flask/ngrok milik skrip ini (MySQL dibiarkan)
     .\start_tunnel.ps1 -Stop -MySql # ... dan MySQL yang tadi dinyalakan skrip ini
+    .\start_tunnel.ps1 -TakeOver    # izinkan skrip merebut port 8000 dari php artisan serve asing
 #>
 [CmdletBinding()]
 param(
@@ -20,6 +21,7 @@ param(
     [switch]$Status,
     [switch]$Stop,
     [switch]$MySql,
+    [switch]$TakeOver,
     [int]$WebPort = 8000,
     [int]$MlPort = 5000,
     [int]$MysqlPort = 3306,
@@ -68,6 +70,52 @@ function Wait-Port([int]$port, [int]$seconds) {
         Start-Sleep -Milliseconds 500
     }
     return $false
+}
+
+function Get-PortOwner([int]$port) {
+    # PID yang benar-benar memegang port. Test-Port saja tidak cukup: port bisa
+    # dijawab proses lain (mis. `php artisan serve` dari jendela konsol) sehingga
+    # skrip menumpang tanpa pernah sadar.
+    $owners = @()
+    try {
+        $owners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop |
+            ForEach-Object { [int]$_.OwningProcess })
+    } catch {
+        $owners = @(& netstat.exe -ano 2>$null |
+            Select-String ":$port\s+\S+\s+LISTENING" |
+            ForEach-Object { [int](($_.ToString() -split '\s+')[-1]) })
+    }
+    if ($owners.Count -eq 0) { return 0 }
+    return ($owners | Select-Object -First 1)
+}
+
+function Get-TrackedLaravelPids {
+    # Induk dari pid file + seluruh anaknya: `artisan serve` meninggalkan anak php
+    # yang justru memegang port.
+    $pidFile = Join-Path $pidDir 'laravel.pid'
+    if (-not (Test-Path -LiteralPath $pidFile)) { return @() }
+    $root = (Get-Content -LiteralPath $pidFile -Raw).Trim()
+    $ids = @([int]$root)
+    try {
+        $ids += @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$root" -ErrorAction Stop |
+            ForEach-Object { [int]$_.ProcessId })
+    } catch { }
+    return $ids
+}
+
+function Get-ApiProbe([int]$port) {
+    # /api/sensor/latest adalah rute API asli yang HARUS menolak tanpa token, jadi
+    # 401 + JSON membuktikan tiga hal sekaligus: framework boot, routes/api.php
+    # terpasang, dan middleware firebase.auth terdaftar. `/up` (health: '/up' di
+    # bootstrap/app.php) hanya membuktikan yang pertama, dan tetap balas 200 HTML
+    # selama app mana pun di docroot itu hidup - termasuk proses php asing.
+    $raw = (& curl.exe -s -o 'NUL' -w '%{http_code} %{content_type}' `
+        "http://127.0.0.1:$port/api/sensor/latest") -join ''
+    $parts = @($raw -split ' ', 2)
+    $code = 0
+    if ($parts.Count -ge 1) { $code = [int]($parts[0] -replace '\D', '0') }
+    $type = if ($parts.Count -ge 2) { $parts[1] } else { '' }
+    return [pscustomobject]@{ Code = $code; Json = ($type -match 'json') }
 }
 
 function Get-EnvValue([string]$path, [string]$key) {
@@ -237,9 +285,36 @@ if (Test-Port $MlPort) {
 
 # ------------------------------------------------------------------ 3. Laravel
 
-if (Test-Port $WebPort) {
-    Write-Ok "Laravel sudah hidup di port $WebPort (dilewati)"
-} else {
+function Get-LaravelOwner {
+    # Mengembalikan [pscustomobject] dengan PID pemilik port + apakah itu anak yang
+    # skrip ini start. Dipakai sebelum dan sesudah menyalakan Laravel.
+    $ownerId = Get-PortOwner $WebPort
+    [pscustomobject]@{
+        Id    = $ownerId
+        Mine  = ($ownerId -ne 0 -and (Get-TrackedLaravelPids) -contains $ownerId)
+    }
+}
+
+function Describe-Process([int]$processId) {
+    $p = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
+    if (-not $p) { return "PID $processId (proses tidak dikenal)" }
+    $line = ($p.CommandLine -replace '\s+', ' ').Trim()
+    if ($line.Length -gt 110) { $line = $line.Substring(0, 110) + '...' }
+    return "PID $processId = $($p.Name) [$line]"
+}
+
+$owner = Get-LaravelOwner
+if ($owner.Id -ne 0 -and -not $owner.Mine) {
+    if ($TakeOver) {
+        Write-Step "merebut port $WebPort dari $(Describe-Process $owner.Id) (-TakeOver)"
+        & taskkill.exe /PID $owner.Id /T /F 2>&1 | Out-Null
+        Start-Sleep -Seconds 1
+    } else {
+        Write-Notice "Port $WebPort dijawab $(Describe-Process $owner.Id) - BUKAN Laravel yang skrip ini kelola."
+    }
+}
+
+if ((Get-PortOwner $WebPort) -eq 0) {
     Write-Step 'menyalakan Laravel'
     # --host 127.0.0.1 (bukan 0.0.0.0 seperti run_all.bat): satu-satunya pintu keluar
     # yang sah adalah ngrok. --no-reload diperlukan supaya PHP_CLI_SERVER_WORKERS dipatuhi,
@@ -252,12 +327,22 @@ if (Test-Port $WebPort) {
     Write-Ok "Laravel siap di http://127.0.0.1:$WebPort ($Workers worker)"
 }
 
-try {
-    $up = Invoke-WebRequest -Uri "http://127.0.0.1:$WebPort/up" -UseBasicParsing -TimeoutSec 8
-    if ($up.StatusCode -ne 200) { Write-Notice "/up balas $($up.StatusCode)" }
-} catch {
-    Stop-WithError "Laravel mendengar di $WebPort tapi /up gagal: $($_.Exception.Message)"
+# Cek sehat = rute API asli yang menolak tanpa token, BUKAN /up. Health check itu
+# hanya membuktikan framework boot; gerbang di bawah membuktikan routes/api.php +
+# middleware auth benar-benar terpasang sebelum tunnel publik dibuka.
+$probe = Get-ApiProbe $WebPort
+if (-not ($probe.Json -and $probe.Code -eq 401)) {
+    $owner = Get-LaravelOwner
+    $who = if ($owner.Mine) { 'Laravel milik skrip ini' } else { Describe-Process $owner.Id }
+    Stop-WithError "API tidak balas 401 JSON di port $WebPort (dapat: $($probe.Code), content-type bukan JSON) dari $who. Kemungkinan yang menjawab adalah halaman error/Laragon, atau APP_DEBUG masih aktif. Tunnel TIDAK dibuka supaya HP tidak menumpang server setengah hidup. Lihat deploy\logs\laravel.error.log; untuk mengusir pemakai port: .\start_tunnel.ps1 -TakeOver"
 }
+Write-Ok "API terverifikasi: /api/sensor/latest balas $($probe.Code) JSON"
+
+$owner = Get-LaravelOwner
+if (-not $owner.Mine) {
+    Write-Notice "Yang menjawab port $WebPort adalah $(Describe-Process $owner.Id). Tunnel akan menumpang jendela itu: kalau jendela ditutup, penjaga (letugrow-tunnel.ps1) melihat API lokal mati dan menyalakan Laravel sendiri. Mau skrip ini yang memegang port? tutup proses itu lalu jalankan ulang, atau pakai -TakeOver."
+}
+
 
 # Guard terakhir: pastikan tidak ada detail exception yang ikut mengalir ke publik.
 $leakProbe = (& curl.exe -s -X POST -H 'Content-Type: application/json' -d '{}' `

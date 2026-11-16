@@ -9,7 +9,8 @@
 [CmdletBinding()]
 param(
     [int]$RetrySeconds = 120,
-    [int]$CheckSeconds = 60
+    [int]$CheckSeconds = 60,
+    [int]$WebPort = 8000
 )
 
 $ErrorActionPreference = 'Continue'
@@ -36,6 +37,17 @@ function Test-TunnelUp {
     }
 }
 
+function Test-OriginUp {
+    # Tunnel hidup tapi Laravel mati adalah kegagalan yang TIDAK kelihatan dari
+    # /api/tunnels: ngrok tetap online dan membalas 404 HTML sendiri, jadi HP hanya
+    # melihat "server mati" selamanya. Probe ini HARUS lokal: menyentuh URL publik
+    # setiap $CheckSeconds menghabiskan kuota ngrok (20.000 req/bulan) untuk hal
+    # yang bisa dijawab localhost. 401 JSON = rute asli, app hidup, auth aktif.
+    $raw = (& curl.exe -s -o 'NUL' -w '%{http_code} %{content_type}' --max-time 5 `
+        "http://127.0.0.1:$WebPort/api/sensor/latest") -join ''
+    return ($raw -match '^401\s' -and $raw -match 'json')
+}
+
 function Test-InternetUp {
     foreach ($target in @('api.ngrok.com', 'www.google.com')) {
         try {
@@ -54,15 +66,30 @@ while ($true) {
         continue
     }
 
-    if (Test-TunnelUp) {
+    $tunnelUp = Test-TunnelUp
+    $originUp = Test-OriginUp
+    if ($tunnelUp -and $originUp) {
         Start-Sleep -Seconds $CheckSeconds
         continue
     }
 
-    Write-Log 'tunnel tidak aktif -> memanggil start_tunnel.ps1'
+    if ($tunnelUp) {
+        # Yang mati origin-nya: kalau dibiarkan, tunnel publik justru menyembunyikan
+        # kerusakan (ngrok balas 404, port 8000 sepi, agent tetap terlihat sehat).
+        Write-Log "tunnel aktif tapi API lokal (port $WebPort) tidak balas 401 JSON -> memanggil start_tunnel.ps1"
+    } else {
+        Write-Log 'tunnel tidak aktif -> memanggil start_tunnel.ps1'
+    }
+
     try {
-        & $starter *>> $logFile
-        Write-Log 'start_tunnel.ps1 selesai (exit).'
+        # Dipanggil sebagai ANAK PROSES, bukan `& $starter`: `exit 1` di dalam
+        # start_tunnel.ps1 (gerbang cek sehat gagal) keluar dari seluruh scope script,
+        # sehingga penjaga mati dan tidak pernah mencoba lagi sampai laptop dinyalakan
+        # ulang. Sekarang penjaga gagal-nya satu kali perbaikan, lalu loop lanjut.
+        $shell = Join-Path $PSHOME 'powershell.exe'
+        & $shell -NoProfile -ExecutionPolicy Bypass -File $starter *>> $logFile
+        if ($LASTEXITCODE -ne 0) { Write-Log "start_tunnel.ps1 keluar dengan kode $LASTEXITCODE (akan dicoba lagi)." }
+        else { Write-Log 'start_tunnel.ps1 selesai (exit).' }
     } catch {
         Write-Log "start_tunnel.ps1 gagal: $($_.Exception.Message)"
     }
