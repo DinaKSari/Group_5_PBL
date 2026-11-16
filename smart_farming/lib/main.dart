@@ -42,7 +42,7 @@ final _darkTheme = ThemeData(
   ),
 );
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Inisialisasi Firebase & background handler top-level sebelum runApp
@@ -111,6 +111,8 @@ class App extends ConsumerStatefulWidget {
 }
 
 class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
+  Future<void> _startup = _initializeFirebase();
+  bool _notificationsStarted = false;
   StreamSubscription<String?>? _uidChanges;
   String? _lastUid;
 
@@ -129,6 +131,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       ref.invalidate(historyProvider);
       ref.invalidate(monitoringProvider);
     });
+  }
 
   void _retryStartup() {
     setState(() {
@@ -165,7 +168,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
+    const themeMode = ThemeMode.system;
 
     return FutureBuilder<void>(
       future: _startup,

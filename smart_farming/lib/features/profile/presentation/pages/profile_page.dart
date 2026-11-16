@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/app_colors.dart';
 import '../../../../core/session.dart';
@@ -53,59 +52,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   String get _email =>
       _currentUser?.email ?? Session.email ?? 'petani@smartfarming.com';
-
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: source,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 85,
-      );
-      if (picked != null) {
-        // Buat file avatar khusus di cache aplikasi
-        final cacheDir = File(picked.path).parent.path;
-        final avatarFile = File('$cacheDir/user_avatar_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await File(picked.path).copy(avatarFile.path);
-
-        // Bersihkan file avatar lama jika ada
-        if (_photoPath != null && _photoPath != avatarFile.path) {
-          try {
-            final old = File(_photoPath!);
-            FileImage(old).evict();
-            if (await old.exists()) await old.delete();
-          } catch (_) {}
-        }
-
-        setState(() {
-          _photoPath = avatarFile.path;
-        });
-
-        try {
-          await _currentUser?.updatePhotoURL(avatarFile.path);
-          await _currentUser?.reload();
-        } catch (e) {
-          debugPrint('[Profile] Gagal simpan photoURL di Firebase: $e');
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Foto profil berhasil diperbarui!'),
-              backgroundColor: AppColors.primary,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memilih gambar: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _deleteProfilePhoto() async {
     final oldPath = _photoPath;
@@ -161,87 +107,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _showImagePickerSheet() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF354839) : Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Foto Profil',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF223527) : AppColors.chip,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
-                ),
-                title: const Text('Pilih dari Galeri'),
-                subtitle: const Text('Gunakan foto dari galeri HP'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickImage(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF223527) : AppColors.chip,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
-                ),
-                title: const Text('Buka Kamera'),
-                subtitle: const Text('Ambil foto langsung dengan kamera'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-              if (_photoPath != null && _photoPath!.isNotEmpty) ...[
-                const Divider(height: 1),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                  ),
-                  title: const Text('Hapus Foto Profil', style: TextStyle(color: Colors.red)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _deleteProfilePhoto();
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    if (_photoPath != null && _photoPath!.isNotEmpty) {
+      _deleteProfilePhoto();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pemilihan foto belum tersedia.')),
     );
   }
 

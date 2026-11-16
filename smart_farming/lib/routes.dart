@@ -9,6 +9,7 @@ import 'features/history/presentation/pages/history_page.dart';
 import 'features/home/presentation/pages/home_page.dart';
 import 'features/onboarding/presentation/pages/splash_page.dart';
 import 'features/prediction/presentation/pages/prediction_page.dart';
+import 'features/profile/presentation/pages/profile_page.dart';
 import 'features/sensor/presentation/pages/sensor_entry_page.dart';
 
 abstract final class AppRoutes {
