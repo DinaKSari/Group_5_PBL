@@ -97,7 +97,6 @@ class HttpHistoryRepository implements HistoryRepository {
 
   @override
   Future<({bool saved, Failure? failure})> addEntry(HistoryEntry entry) async {
-    await InMemoryHistoryRepository.instance.addEntry(entry);
     return (saved: true, failure: null);
   }
 }
