@@ -13,6 +13,7 @@ import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
 import 'features/notification/presentation/providers/notification_providers.dart';
+import 'features/profile/presentation/providers/profile_providers.dart';
 import 'firebase_options.dart';
 import 'routes.dart';
 
@@ -44,48 +45,14 @@ final _darkTheme = ThemeData(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inisialisasi Firebase & background handler top-level sebelum runApp
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-  // Base URL + batas versi dibaca dari Remote Config SEKALI saat start, dengan
-  // batas waktu pendek. Gagal/tidak ter-set pun app tetap jalan memakai nilai
-  // build (ApiConfig.buildDefault / dart-define), jadi langkah R4 di Console
-  // tidak bisa membuat aplikasi tidak bisa dibuka.
-  await loadRemoteSettings();
-
-  // Sumber kebenaran sesi: kejadian pertama = pemulihan user yang tersimpan
-  // Firebase, selanjutnya login/logout. Router & layer data hanya membaca
-  // Session, tidak pernah menebak identitas sendiri.
-  FirebaseAuth.instance.authStateChanges().listen((user) {
-    Session.uid = user?.uid;
-    Session.email = user?.email;
-    Session.name = user?.displayName;
-    if (user != null) Session.isGuest = false;
-    authStateNotifier.value = authStateNotifier.value + 1;
-  });
-
   runApp(const ProviderScope(child: App()));
 }
 
 Future<void> _initializeFirebase() async {
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-  } on FirebaseException catch (e) {
-    if (e.code != 'duplicate-app') {
-      debugPrint('[Firebase] Inisialisasi Firebase warning: $e');
-    }
-  } catch (e) {
-    if (!e.toString().contains('duplicate-app')) {
-      debugPrint('[Firebase] Inisialisasi Firebase error: $e');
-    }
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   }
 
   try {
@@ -94,13 +61,13 @@ Future<void> _initializeFirebase() async {
     debugPrint('[FirebaseMessaging] Background handler error: $e');
   }
 
-  try {
-    final restoredUser = FirebaseAuth.instance.currentUser;
-    Session.uid = restoredUser?.uid;
-    Session.email = restoredUser?.email;
-  } catch (e) {
-    debugPrint('[Session] Pulihkan sesi error: $e');
-  }
+  // Remote Config gagal secara tertutup dan tetap memakai nilai build.
+  await loadRemoteSettings();
+
+  final restoredUser = FirebaseAuth.instance.currentUser;
+  Session.uid = restoredUser?.uid;
+  Session.email = restoredUser?.email;
+  Session.name = restoredUser?.displayName;
 }
 
 class App extends ConsumerStatefulWidget {
@@ -111,39 +78,56 @@ class App extends ConsumerStatefulWidget {
 }
 
 class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
-  Future<void> _startup = _initializeFirebase();
+  late Future<void> _startup;
   bool _notificationsStarted = false;
-  StreamSubscription<String?>? _uidChanges;
+  StreamSubscription<User?>? _uidChanges;
   String? _lastUid;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _lastUid = Session.uid;
+    _startStartup();
+  }
 
-    // Tab Beranda/Prediksi/Riwayat hidup di shell yang sama, jadi provider-nya
-    // tidak ikut mati saat ganti akun. Tanpa ini layar tetap menampilkan daftar
-    // milik akun sebelumnya sampai app ditutup paksa (ditemukan saat uji R7).
-    _uidChanges = FirebaseAuth.instance.authStateChanges().map((user) => user?.uid).listen((uid) {
-      if (uid == _lastUid) return;
-      _lastUid = uid;
-      ref.invalidate(historyProvider);
-      ref.invalidate(monitoringProvider);
-    });
+  void _startStartup() {
+    _startup = _initializeFirebase();
+    _startup.then(
+      (_) {
+        if (!mounted) return;
+        _lastUid = FirebaseAuth.instance.currentUser?.uid;
+        _uidChanges?.cancel();
+        _uidChanges = FirebaseAuth.instance.authStateChanges().listen((user) {
+          Session.uid = user?.uid;
+          Session.email = user?.email;
+          Session.name = user?.displayName;
+          if (user != null) Session.isGuest = false;
+
+          final uid = user?.uid;
+          if (uid == _lastUid) return;
+          _lastUid = uid;
+          ref.invalidate(historyProvider);
+          ref.invalidate(monitoringProvider);
+          ref.invalidate(currentProfileProvider);
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('[Firebase] Bootstrap gagal: $error\n$stackTrace');
+      },
+    );
   }
 
   void _retryStartup() {
     setState(() {
-      _startup = _initializeFirebase();
+      _startStartup();
     });
   }
 
   Future<void> _initializeNotifications() async {
     try {
-      await ref.read(notificationRepositoryProvider).initialize(
-            onNotificationOpened: (route) => appRouter.go(route),
-          );
+      await ref
+          .read(notificationRepositoryProvider)
+          .initialize(onNotificationOpened: (route) => appRouter.go(route));
     } catch (error, stackTrace) {
       debugPrint('[App] Inisialisasi notifikasi gagal: $error\n$stackTrace');
     }
@@ -241,7 +225,10 @@ class _StartupPage extends StatelessWidget {
               ),
               if (onRetry != null) ...[
                 const SizedBox(height: 16),
-                FilledButton(onPressed: onRetry, child: const Text('Coba lagi')),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Coba lagi'),
+                ),
               ],
             ],
           ),

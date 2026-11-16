@@ -20,7 +20,7 @@ import '../models/prediction_result_model.dart';
 /// pengguna, supaya angka yang muncul di layar selalu hasil model ML sungguhan.
 class HttpPredictionRepository implements PredictionRepository {
   HttpPredictionRepository({http.Client? client})
-      : _api = ApiClient(client: client);
+    : _api = ApiClient(client: client);
 
   final ApiClient _api;
 
@@ -78,7 +78,10 @@ class HttpPredictionRepository implements PredictionRepository {
       }
       try {
         return (
-          result: PredictionResultModel.fromJson(data, DateTime.now()),
+          result: PredictionResultModel.fromJson(
+            data,
+            request.inputDate ?? DateTime.now(),
+          ),
           failure: null,
         );
       } catch (e) {
@@ -115,7 +118,9 @@ class HttpPredictionRepository implements PredictionRepository {
       if (errors is List && errors.isNotEmpty) return errors.join(', ');
 
       final message = data['message'];
-      if (message is String && message.isNotEmpty && message != 'Server Error') {
+      if (message is String &&
+          message.isNotEmpty &&
+          message != 'Server Error') {
         return message;
       }
     }

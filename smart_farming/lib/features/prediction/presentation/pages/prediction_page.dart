@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/app_colors.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../routes.dart';
 import '../../../history/domain/entities/history_entry.dart';
@@ -21,7 +23,20 @@ const _fieldIcons = {
   'ph': Icons.water_drop_outlined,
 };
 
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
 String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
 class PrediksiPage extends ConsumerStatefulWidget {
@@ -38,7 +53,8 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
 
   // ValueNotifier per field: hanya tile yang berubah yang rebuild.
   final _values = {
-    for (final f in kGrowthParameters) f.key: ValueNotifier<double>(f.defaultValue)
+    for (final f in kGrowthParameters)
+      f.key: ValueNotifier<double>(f.defaultValue),
   };
 
   bool _loading = false;
@@ -54,64 +70,90 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
   }
 
   PredictionRequest get _request => PredictionRequest(
-        plantAge: _values['umur_hst']!.value,
-        temperature: _values['suhu']!.value,
-        humidity: _values['kelembapan']!.value,
-        tds: _values['tds']!.value,
-        ph: _values['ph']!.value,
-        location: _location.text.trim(),
-        inputDate: _date.value,
-      );
+    plantAge: _values['umur_hst']!.value,
+    temperature: _values['suhu']!.value,
+    humidity: _values['kelembapan']!.value,
+    tds: _values['tds']!.value,
+    ph: _values['ph']!.value,
+    location: _location.text.trim(),
+    inputDate: _date.value,
+  );
 
   Future<void> _submit() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
     if (_location.text.trim().isEmpty) return;
 
+    // Keep the submitted values immutable while the request is in flight.
+    // Otherwise edits made during the request could be saved as a different
+    // set of parameters than the ones actually sent to the ML service.
+    final request = _request;
     setState(() => _loading = true);
-    final outcome = await ref.read(predictionRepositoryProvider).predict(_request);
-    if (!mounted) return;
-    setState(() => _loading = false);
+    try {
+      final outcome = await ref
+          .read(predictionRepositoryProvider)
+          .predict(request);
+      if (!mounted) return;
 
-    final failure = outcome.failure;
-    if (failure != null) {
-      final isAuth = failure is AuthFailure;
+      final failure = outcome.failure;
+      final result = outcome.result;
+      if (failure != null || result == null) {
+        final message =
+            failure?.message ?? 'Server tidak mengembalikan hasil prediksi.';
+        final isAuth = failure is AuthFailure;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isAuth ? message : 'Prediksi gagal: $message'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            action: isAuth
+                ? SnackBarAction(
+                    label: 'Masuk',
+                    onPressed: () => context.go(AppRoute.login),
+                  )
+                : null,
+          ),
+        );
+        return;
+      }
+
+      final entry = HistoryEntry(
+        location: request.location ?? '',
+        inputDate: request.inputDate ?? result.inputDate,
+        daysLeft: result.daysLeft,
+        parameters: request,
+      );
+
+      // POST /predict already persists the row. Refresh the server-backed
+      // history rather than calling addEntry(), which is intentionally a no-op.
+      ref.invalidate(historyProvider);
+
+      try {
+        await ref
+            .read(notificationRepositoryProvider)
+            .showHarvestNotification(
+              location: entry.location,
+              daysLeft: result.daysLeft,
+            );
+      } catch (e) {
+        debugPrint('[PrediksiPage] Gagal memicu notifikasi panen: $e');
+      }
+
+      if (mounted) _showResultBottomSheet(result, entry);
+    } catch (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isAuth ? failure.message : 'Prediksi gagal: ${failure.message}'),
+          content: Text(
+            'Prediksi gagal: ${ErrorMessages.fromException(error)}',
+          ),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
-          // Mode Tamu / sesi habis: tawarkan jalan keluar, bukan sekadar pesan.
-          action: isAuth
-              ? SnackBarAction(label: 'Masuk', onPressed: () => context.go(AppRoute.login))
-              : null,
         ),
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    final result = outcome.result!;
-    final entry = HistoryEntry(
-      location: _location.text.trim(),
-      inputDate: _date.value,
-      daysLeft: result.daysLeft,
-      parameters: _request,
-    );
-    await ref.read(historyRepositoryProvider).addEntry(entry);
-    ref.invalidate(historyProvider);
-
-    // Memicu notifikasi lokal panen ke bilah status HP
-    try {
-      await ref.read(notificationRepositoryProvider).showHarvestNotification(
-        location: _location.text.trim(),
-        daysLeft: result.daysLeft,
-      );
-    } catch (e) {
-      debugPrint('[PrediksiPage] Gagal memicu notifikasi panen: $e');
-    }
-
-    if (!mounted) return;
-
-    _showResultBottomSheet(result, entry);
   }
 
   void _showResultBottomSheet(PredictionResult result, HistoryEntry entry) {
@@ -140,23 +182,29 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          const FormHeaderTile(title: 'Form Prediksi Panen', subtitle: 'Input kondisi terkini selada'),
+          const FormHeaderTile(
+            title: 'Form Prediksi Panen',
+            subtitle: 'Input kondisi terkini selada',
+          ),
           Expanded(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: [
-                  PlantingInfoTile(location: _location, date: _date),
-                  for (final f in kGrowthParameters) ...[
-                    const SizedBox(height: 12),
-                    NumberFieldTile(
-                      spec: f,
-                      icon: _fieldIcons[f.key]!,
-                      value: _values[f.key]!,
-                    ),
+            child: AbsorbPointer(
+              absorbing: _loading,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  children: [
+                    PlantingInfoTile(location: _location, date: _date),
+                    for (final f in kGrowthParameters) ...[
+                      const SizedBox(height: 12),
+                      NumberFieldTile(
+                        spec: f,
+                        icon: _fieldIcons[f.key]!,
+                        value: _values[f.key]!,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -168,14 +216,23 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
 }
 
 class FormHeaderTile extends StatelessWidget {
-  const FormHeaderTile({super.key, required this.title, required this.subtitle});
+  const FormHeaderTile({
+    super.key,
+    required this.title,
+    required this.subtitle,
+  });
   final String title, subtitle;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 16, 20, 22),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.paddingOf(context).top + 16,
+        20,
+        22,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Color(0xFF14472C), AppColors.accent]),
       ),
@@ -185,9 +242,19 @@ class FormHeaderTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
               ],
             ),
           ),
@@ -199,7 +266,11 @@ class FormHeaderTile extends StatelessWidget {
 
 /// Form info log (non-ML): lokasi tanam & tanggal input.
 class PlantingInfoTile extends StatelessWidget {
-  const PlantingInfoTile({super.key, required this.location, required this.date});
+  const PlantingInfoTile({
+    super.key,
+    required this.location,
+    required this.date,
+  });
   final TextEditingController location;
   final ValueNotifier<DateTime> date;
 
@@ -219,13 +290,17 @@ class PlantingInfoTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+      borderSide: BorderSide(
+        color: isDark ? const Color(0xFF28382D) : AppColors.border,
+      ),
     );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+        border: Border.all(
+          color: isDark ? const Color(0xFF28382D) : AppColors.border,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -241,21 +316,31 @@ class PlantingInfoTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            const Text('Untuk catatan riwayat', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+            const Text(
+              'Untuk catatan riwayat',
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
             const SizedBox(height: 14),
             TextFormField(
               controller: location,
               textInputAction: TextInputAction.done,
               style: TextStyle(color: isDark ? Colors.white : AppColors.text),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Lokasi tanam wajib diisi' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Lokasi tanam wajib diisi'
+                  : null,
               decoration: InputDecoration(
                 labelText: 'Lokasi Tanam',
                 hintText: 'cth: Greenhouse Blok A – Rak 1',
-                prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.accent),
+                prefixIcon: const Icon(
+                  Icons.location_on_outlined,
+                  color: AppColors.accent,
+                ),
                 isDense: true,
                 border: border,
                 enabledBorder: border,
-                focusedBorder: border.copyWith(borderSide: const BorderSide(color: AppColors.accent)),
+                focusedBorder: border.copyWith(
+                  borderSide: const BorderSide(color: AppColors.accent),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -267,13 +352,25 @@ class PlantingInfoTile extends StatelessWidget {
                 child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: 'Tanggal Input Prediksi',
-                    prefixIcon: const Icon(Icons.event_outlined, color: AppColors.accent),
-                    suffixIcon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.muted),
+                    prefixIcon: const Icon(
+                      Icons.event_outlined,
+                      color: AppColors.accent,
+                    ),
+                    suffixIcon: const Icon(
+                      Icons.arrow_drop_down_rounded,
+                      color: AppColors.muted,
+                    ),
                     isDense: true,
                     border: border,
                     enabledBorder: border,
                   ),
-                  child: Text(_fmtDate(d), style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontSize: 15)),
+                  child: Text(
+                    _fmtDate(d),
+                    style: TextStyle(
+                      color: isDark ? Colors.white : AppColors.text,
+                      fontSize: 15,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -285,7 +382,12 @@ class PlantingInfoTile extends StatelessWidget {
 }
 
 class NumberFieldTile extends StatelessWidget {
-  const NumberFieldTile({super.key, required this.spec, required this.icon, required this.value});
+  const NumberFieldTile({
+    super.key,
+    required this.spec,
+    required this.icon,
+    required this.value,
+  });
   final ParameterSpec spec;
   final IconData icon;
   final ValueNotifier<double> value;
@@ -299,7 +401,9 @@ class NumberFieldTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+        border: Border.all(
+          color: isDark ? const Color(0xFF28382D) : AppColors.border,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -322,46 +426,77 @@ class NumberFieldTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _Stepper(icon: Icons.remove, onTap: v > spec.min ? () => _set(v - spec.step) : null),
+                  _Stepper(
+                    icon: Icons.remove,
+                    onTap: v > spec.min ? () => _set(v - spec.step) : null,
+                  ),
                   SizedBox(
                     width: 92,
                     child: Text.rich(
                       TextSpan(
                         text: v.toStringAsFixed(spec.decimals),
                         style: TextStyle(
-                          color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+                          color: isDark
+                              ? const Color(0xFF4ADE80)
+                              : AppColors.primary,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
                         children: [
                           TextSpan(
                             text: ' ${spec.unit}',
-                            style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  _Stepper(icon: Icons.add, onTap: v < spec.max ? () => _set(v + spec.step) : null),
+                  _Stepper(
+                    icon: Icons.add,
+                    onTap: v < spec.max ? () => _set(v + spec.step) : null,
+                  ),
                 ],
               ),
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 4,
                   activeTrackColor: AppColors.accent,
-                  inactiveTrackColor: isDark ? const Color(0xFF2C3930) : AppColors.chip,
+                  inactiveTrackColor: isDark
+                      ? const Color(0xFF2C3930)
+                      : AppColors.chip,
                   thumbColor: AppColors.primary,
                 ),
-                child: Slider(value: v, min: spec.min, max: spec.max, onChanged: _set),
+                child: Slider(
+                  value: v,
+                  min: spec.min,
+                  max: spec.max,
+                  onChanged: _set,
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${spec.min.toStringAsFixed(spec.decimals)} ${spec.unit}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
-                    Text('${spec.max.toStringAsFixed(spec.decimals)} ${spec.unit}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                    Text(
+                      '${spec.min.toStringAsFixed(spec.decimals)} ${spec.unit}',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      '${spec.max.toStringAsFixed(spec.decimals)} ${spec.unit}',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -383,7 +518,10 @@ class _Stepper extends StatelessWidget {
     return IconButton.filledTonal(
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
-      style: IconButton.styleFrom(backgroundColor: AppColors.chip, foregroundColor: AppColors.primary),
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.chip,
+        foregroundColor: AppColors.primary,
+      ),
       icon: Icon(icon, size: 18),
     );
   }
@@ -400,7 +538,11 @@ class SubmitBar extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF162119) : Colors.white,
-        border: Border(top: BorderSide(color: isDark ? const Color(0xFF28382D) : AppColors.border)),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? const Color(0xFF28382D) : AppColors.border,
+          ),
+        ),
       ),
       child: SafeArea(
         bottom: false,
@@ -411,12 +553,23 @@ class SubmitBar extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             icon: loading
-                ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.auto_graph_rounded),
-            label: Text(loading ? 'Memproses...' : 'Prediksi Waktu Panen', style: const TextStyle(fontWeight: FontWeight.w700)),
+            label: Text(
+              loading ? 'Memproses...' : 'Prediksi Waktu Panen',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ),
       ),
@@ -459,7 +612,12 @@ class PredictionResultBottomSheet extends StatelessWidget {
         color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 20),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        MediaQuery.paddingOf(context).bottom + 20,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -486,7 +644,11 @@ class PredictionResultBottomSheet extends StatelessWidget {
                   color: isDark ? const Color(0xFF223527) : AppColors.chip,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
+                child: const Icon(
+                  Icons.eco_rounded,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -503,7 +665,10 @@ class PredictionResultBottomSheet extends StatelessWidget {
                     ),
                     Text(
                       entry.location,
-                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -528,7 +693,7 @@ class PredictionResultBottomSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -544,9 +709,11 @@ class PredictionResultBottomSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          result.isReady ? 'SIAP DIPANEN! 🥬' : 'ESTIMASI SISA WAKTU',
+                          result.isReady
+                              ? 'SIAP DIPANEN! 🥬'
+                              : 'ESTIMASI SISA WAKTU',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 11,
                             letterSpacing: 1.1,
                             fontWeight: FontWeight.w600,
@@ -568,16 +735,23 @@ class PredictionResultBottomSheet extends StatelessWidget {
                             const SizedBox(width: 6),
                             const Text(
                               'Hari Lagi',
-                              style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Column(
@@ -585,7 +759,10 @@ class PredictionResultBottomSheet extends StatelessWidget {
                         children: [
                           const Text(
                             'Target Tanggal',
-                            style: TextStyle(fontSize: 11, color: Colors.white70),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white70,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -623,11 +800,19 @@ class PredictionResultBottomSheet extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.category_outlined, size: 16, color: stageColor),
+                          Icon(
+                            Icons.category_outlined,
+                            size: 16,
+                            color: stageColor,
+                          ),
                           const SizedBox(width: 6),
                           const Text(
                             'Fase Tanaman',
-                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.muted,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -636,7 +821,11 @@ class PredictionResultBottomSheet extends StatelessWidget {
                         result.growthStage,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: stageColor),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: stageColor,
+                        ),
                       ),
                     ],
                   ),
@@ -657,11 +846,19 @@ class PredictionResultBottomSheet extends StatelessWidget {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.bubble_chart_outlined, size: 16, color: AppColors.primary),
+                          Icon(
+                            Icons.bubble_chart_outlined,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'Profil Lingkungan',
-                            style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.muted,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -670,7 +867,11 @@ class PredictionResultBottomSheet extends StatelessWidget {
                         result.clusterDesc,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.text),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
                       ),
                     ],
                   ),
@@ -684,16 +885,28 @@ class PredictionResultBottomSheet extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.chip.withOpacity(0.5),
+              color: AppColors.chip.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _MiniParam(icon: Icons.thermostat_outlined, label: '${req.temperature}°C'),
-                _MiniParam(icon: Icons.cloud_outlined, label: '${req.humidity.toInt()}%'),
-                _MiniParam(icon: Icons.science_outlined, label: '${req.tds.toInt()} PPM'),
-                _MiniParam(icon: Icons.water_drop_outlined, label: 'pH ${req.ph}'),
+                _MiniParam(
+                  icon: Icons.thermostat_outlined,
+                  label: '${req.temperature}°C',
+                ),
+                _MiniParam(
+                  icon: Icons.cloud_outlined,
+                  label: '${req.humidity.toInt()}%',
+                ),
+                _MiniParam(
+                  icon: Icons.science_outlined,
+                  label: '${req.tds.toInt()} PPM',
+                ),
+                _MiniParam(
+                  icon: Icons.water_drop_outlined,
+                  label: 'pH ${req.ph}',
+                ),
               ],
             ),
           ),
@@ -705,10 +918,15 @@ class PredictionResultBottomSheet extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             icon: const Icon(Icons.history_rounded, size: 18),
-            label: const Text('Buka Riwayat Prediksi', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text(
+              'Buka Riwayat Prediksi',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
@@ -716,9 +934,17 @@ class PredictionResultBottomSheet extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(46),
               side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('Selesai & Ke Beranda', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Selesai & Ke Beranda',
+              style: TextStyle(
+                color: AppColors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -737,7 +963,14 @@ class _MiniParam extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.primary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
       ],
     );
   }

@@ -31,7 +31,7 @@ class _ThrowingClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async =>
-    throw error;
+      throw error;
 }
 
 const _request = PredictionRequest(
@@ -64,9 +64,7 @@ void main() {
       final repo = HttpPredictionRepository(
         client: _StubClient(
           503,
-          jsonEncode({
-            'message': 'Layanan prediksi ML tidak dapat dihubungi.',
-          }),
+          jsonEncode({'message': 'Layanan prediksi ML tidak dapat dihubungi.'}),
         ),
       );
 
@@ -101,42 +99,73 @@ void main() {
       );
     });
 
-    test('backend mati menghasilkan NetworkFailure, tanpa data palsu', () async {
-      final repo = HttpPredictionRepository(
-        client: _ThrowingClient(
-          const SocketException('connection refused'),
-        ),
-      );
+    test(
+      'backend mati menghasilkan NetworkFailure, tanpa data palsu',
+      () async {
+        final repo = HttpPredictionRepository(
+          client: _ThrowingClient(const SocketException('connection refused')),
+        );
 
-      final outcome = await repo.predict(_request);
+        final outcome = await repo.predict(_request);
 
-      expect(outcome.result, isNull);
-      expect(outcome.failure, isA<NetworkFailure>());
-    });
+        expect(outcome.result, isNull);
+        expect(outcome.failure, isA<NetworkFailure>());
+      },
+    );
 
-    test('timeout dilaporkan sebagai kegagalan, bukan hasil simulasi', () async {
-      final repo = HttpPredictionRepository(
-        client: _ThrowingClient(
-          TimeoutException('predict', const Duration(seconds: 15)),
-        ),
-      );
+    test(
+      'timeout dilaporkan sebagai kegagalan, bukan hasil simulasi',
+      () async {
+        final repo = HttpPredictionRepository(
+          client: _ThrowingClient(
+            TimeoutException('predict', const Duration(seconds: 15)),
+          ),
+        );
 
-      final outcome = await repo.predict(_request);
+        final outcome = await repo.predict(_request);
 
-      expect(outcome.result, isNull);
-      expect(outcome.failure, isNotNull);
-    });
+        expect(outcome.result, isNull);
+        expect(outcome.failure, isNotNull);
+      },
+    );
 
-    test('201 dengan payload multi-task terparse menjadi hasil prediksi', () async {
-      final repo = HttpPredictionRepository(
-        client: _StubClient(201, _successBody),
-      );
+    test(
+      '201 dengan payload multi-task terparse menjadi hasil prediksi',
+      () async {
+        final repo = HttpPredictionRepository(
+          client: _StubClient(201, _successBody),
+        );
 
-      final outcome = await repo.predict(_request);
+        final outcome = await repo.predict(_request);
 
-      expect(outcome.failure, isNull);
-      expect(outcome.result, isNotNull);
-      expect(outcome.result!.daysLeft, 15);
-    });
+        expect(outcome.failure, isNull);
+        expect(outcome.result, isNotNull);
+        expect(outcome.result!.daysLeft, 15);
+      },
+    );
+
+    test(
+      'tanggal hasil memakai tanggal input form, bukan waktu response',
+      () async {
+        final selectedDate = DateTime(2026, 11, 12);
+        final repo = HttpPredictionRepository(
+          client: _StubClient(201, _successBody),
+        );
+
+        final outcome = await repo.predict(
+          PredictionRequest(
+            plantAge: 30,
+            temperature: 27.5,
+            humidity: 70,
+            tds: 800,
+            ph: 6.5,
+            inputDate: selectedDate,
+          ),
+        );
+
+        expect(outcome.result!.inputDate, selectedDate);
+        expect(outcome.result!.harvestDate, DateTime(2026, 11, 27));
+      },
+    );
   });
 }

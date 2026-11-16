@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../auth/presentation/providers/auth_providers.dart';
+
 import '../../../notification/presentation/providers/notification_providers.dart';
 import '../../data/monitoring_service.dart';
 import '../providers/home_providers.dart';
@@ -13,6 +13,7 @@ import '../../../../core/failures.dart';
 import '../../../../core/remote_settings.dart';
 import '../../../../core/session.dart';
 import '../../../../routes.dart';
+
 import 'package:smart_farming/core/app_colors.dart';
 
 class ParamData {
@@ -36,10 +37,34 @@ List<ParamData> _paramsFrom(MonitoringData data) {
 
   final s = data.sensor;
   return [
-    ParamData(Icons.water_drop_outlined, s == null ? '--' : s.ph.toStringAsFixed(1), 'pH Air', '5.5 – 6.5', s == null ? '-' : tag('pH Air', s.ph)),
-    ParamData(Icons.science_outlined, s == null ? '--' : s.tds.toStringAsFixed(0), 'Nutrisi PPM', '560 – 840', s == null ? '-' : tag('Nutrisi PPM', s.tds)),
-    ParamData(Icons.thermostat_outlined, s == null ? '--' : '${s.suhu.toStringAsFixed(0)}°C', 'Suhu', '20 – 26°C', s == null ? '-' : tag('Suhu', s.suhu)),
-    ParamData(Icons.cloud_outlined, s == null ? '--' : '${s.kelembapan.toStringAsFixed(0)}%', 'Kelembaban', '70 – 85%', s == null ? '-' : tag('Kelembaban', s.kelembapan)),
+    ParamData(
+      Icons.water_drop_outlined,
+      s == null ? '--' : s.ph.toStringAsFixed(1),
+      'pH Air',
+      '5.5 – 6.5',
+      s == null ? '-' : tag('pH Air', s.ph),
+    ),
+    ParamData(
+      Icons.science_outlined,
+      s == null ? '--' : s.tds.toStringAsFixed(0),
+      'Nutrisi PPM',
+      '560 – 840',
+      s == null ? '-' : tag('Nutrisi PPM', s.tds),
+    ),
+    ParamData(
+      Icons.thermostat_outlined,
+      s == null ? '--' : '${s.suhu.toStringAsFixed(0)}°C',
+      'Suhu',
+      '20 – 26°C',
+      s == null ? '-' : tag('Suhu', s.suhu),
+    ),
+    ParamData(
+      Icons.cloud_outlined,
+      s == null ? '--' : '${s.kelembapan.toStringAsFixed(0)}%',
+      'Kelembaban',
+      '70 – 85%',
+      s == null ? '-' : tag('Kelembaban', s.kelembapan),
+    ),
   ];
 }
 
@@ -88,11 +113,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                     monitoring.maybeWhen(
                       data: (d) => BatchTile(
                         daysLeft: d.prediction?.daysLeft ?? 0,
-                        estimate: d.prediction == null ? '-' : _fmtDate(d.prediction!.harvestDate),
+                        estimate: d.prediction == null
+                            ? '-'
+                            : _fmtDate(d.prediction!.harvestDate),
                         currentHst: (d.prediction?.currentHst ?? 0).round(),
                         totalHst: d.prediction?.totalHst ?? 1,
                       ),
-                      orElse: () => const BatchTile(daysLeft: 0, estimate: 'Tarik untuk memuat data', currentHst: 0, totalHst: 1),
+                      orElse: () => const BatchTile(
+                        daysLeft: 0,
+                        estimate: 'Tarik untuk memuat data',
+                        currentHst: 0,
+                        totalHst: 1,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
@@ -107,7 +139,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                     monitoring.when(
                       loading: () => const Padding(
                         padding: EdgeInsets.symmetric(vertical: 32),
-                        child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.accent,
+                          ),
+                        ),
                       ),
                       error: (e, st) => _DataNotice(
                         message: 'Data pemantauan gagal dimuat: $e',
@@ -152,7 +188,11 @@ class _DataNotice extends StatelessWidget {
         children: [
           const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 28),
           const SizedBox(height: 10),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.muted),
+          ),
           const SizedBox(height: 12),
           TextButton(onPressed: onRetry, child: const Text('Coba lagi')),
         ],
@@ -163,7 +203,20 @@ class _DataNotice extends StatelessWidget {
 
 String _fmtDate(DateTime d) {
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const months = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
   return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
@@ -193,7 +246,10 @@ class _SensorSubtitle extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
               ),
-              child: const Text('Catat sekarang', style: TextStyle(fontSize: 11)),
+              child: const Text(
+                'Catat sekarang',
+                style: TextStyle(fontSize: 11),
+              ),
             ),
         ],
       ),
@@ -220,7 +276,9 @@ class HeaderTile extends ConsumerWidget {
 
   Future<void> _copyDebugToken(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    final result = await ref.read(notificationRepositoryProvider).currentOrFreshToken();
+    final result = await ref
+        .read(notificationRepositoryProvider)
+        .currentOrFreshToken();
     final token = result.token;
     if (token != null) {
       await Clipboard.setData(ClipboardData(text: token));
@@ -236,7 +294,12 @@ class HeaderTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 18, 16, 56),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.paddingOf(context).top + 18,
+        16,
+        56,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -253,20 +316,34 @@ class HeaderTile extends ConsumerWidget {
               children: [
                 const Text(
                   'Selada Seperti Anak Sendiri',
-                  style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 GestureDetector(
-                  onLongPress: kDebugMode ? () => _copyDebugToken(context, ref) : null,
+                  onLongPress: kDebugMode
+                      ? () => _copyDebugToken(context, ref)
+                      : null,
                   child: const Text(
                     'Halo, Petani Selada 👋',
-                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
                   'Pantau pertumbuhan & prediksi waktu panen akurat',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -277,9 +354,15 @@ class HeaderTile extends ConsumerWidget {
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 22),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.primary,
+              size: 22,
+            ),
           ),
         ],
       ),
@@ -313,25 +396,57 @@ class BatchTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⚡ Batch Terpantau', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            const Text(
+              '⚡ Batch Terpantau',
+              style: TextStyle(color: AppColors.muted, fontSize: 13),
+            ),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text('$daysLeft', style: TextStyle(color: isDark ? const Color(0xFF4ADE80) : AppColors.primary, fontSize: 48, fontWeight: FontWeight.w800, height: 1)),
+                Text(
+                  '$daysLeft',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
                 const SizedBox(width: 8),
-                const Text('Hari Lagi', style: TextStyle(color: AppColors.accent, fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Hari Lagi',
+                  style: TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('Menuju Panen', style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(
+              'Menuju Panen',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.muted),
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 14,
+                  color: AppColors.muted,
+                ),
                 const SizedBox(width: 6),
-                Text('Estimasi: $estimate', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                Text(
+                  'Estimasi: $estimate',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -341,15 +456,23 @@ class BatchTile extends StatelessWidget {
                 value: currentHst / totalHst,
                 minHeight: 7,
                 color: AppColors.accent,
-                backgroundColor: isDark ? const Color(0xFF2C3930) : const Color(0xFFE6EAE7),
+                backgroundColor: isDark
+                    ? const Color(0xFF2C3930)
+                    : const Color(0xFFE6EAE7),
               ),
             ),
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('$currentHst HST (Saat Ini)', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
-                Text('Total ~$totalHst HST', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                Text(
+                  '$currentHst HST (Saat Ini)',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
+                Text(
+                  'Total ~$totalHst HST',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
               ],
             ),
           ],
@@ -374,15 +497,31 @@ class PredictionTile extends StatelessWidget {
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         leading: DecoratedBox(
-          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: const Padding(
             padding: EdgeInsets.all(12),
             child: Icon(Icons.monitor_heart_outlined, color: Colors.white),
           ),
         ),
-        title: Text('Mulai Prediksi Baru', style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
-        subtitle: const Text('Input parameter tinggi, pH, dan PPM selada', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-        trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white70 : AppColors.text),
+        title: Text(
+          'Mulai Prediksi Baru',
+          style: TextStyle(
+            color: isDark ? Colors.white : AppColors.text,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+        subtitle: const Text(
+          'Input parameter tinggi, pH, dan PPM selada',
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: isDark ? Colors.white70 : AppColors.text,
+        ),
       ),
     );
   }
@@ -414,13 +553,21 @@ class VersionNoticeBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.system_update_outlined, size: 20, color: Color(0xFF9A5B00)),
+            const Icon(
+              Icons.system_update_outlined,
+              size: 20,
+              color: Color(0xFF9A5B00),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Versi aplikasi ini ($appVersion) lebih lama dari versi minimum $minimum. '
                 'Ambil APK terbaru dari pengelola LettuGrow supaya data tetap cocok dengan server.',
-                style: const TextStyle(color: Color(0xFF6E4300), fontSize: 12, height: 1.4),
+                style: const TextStyle(
+                  color: Color(0xFF6E4300),
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
@@ -434,8 +581,11 @@ class VersionNoticeBanner extends StatelessWidget {
 /// jadi diberi pesan alih-alih dilempar guard router kembali ke splash.
 void openSensorEntry(BuildContext context) {
   if (Session.isGuest) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Masuk untuk mencatat parameter kebun kalian.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Masuk untuk mencatat parameter kebun kalian.'),
+      ),
+    );
     return;
   }
   context.push(AppRoute.sensor);
@@ -465,9 +615,22 @@ class SensorEntryTile extends StatelessWidget {
             child: Icon(Icons.edit_note_rounded, color: Colors.white),
           ),
         ),
-        title: const Text('Catat Parameter Kebun', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
-        subtitle: const Text('Ukur tangan, lalu isi umur HST, suhu, lembap, TDS & pH', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text),
+        title: const Text(
+          'Catat Parameter Kebun',
+          style: TextStyle(
+            color: AppColors.text,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+        subtitle: const Text(
+          'Ukur tangan, lalu isi umur HST, suhu, lembap, TDS & pH',
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right_rounded,
+          color: AppColors.text,
+        ),
       ),
     );
   }
@@ -484,7 +647,12 @@ class SectionTile extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Text(
         title,
-        style: TextStyle(color: isDark ? Colors.white70 : AppColors.text, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1),
+        style: TextStyle(
+          color: isDark ? Colors.white70 : AppColors.text,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
+        ),
       ),
     );
   }
@@ -523,7 +691,9 @@ class ParamTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1D2620) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF28382D) : AppColors.border),
+        border: Border.all(
+          color: isDark ? const Color(0xFF28382D) : AppColors.border,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -538,10 +708,26 @@ class ParamTile extends StatelessWidget {
               ],
             ),
             const Spacer(),
-            Text(data.value, style: TextStyle(color: isDark ? const Color(0xFF4ADE80) : AppColors.primary, fontSize: 24, fontWeight: FontWeight.w800)),
-            Text(data.label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            Text(
+              data.value,
+              style: TextStyle(
+                color: isDark ? const Color(0xFF4ADE80) : AppColors.primary,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              data.label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
             const SizedBox(height: 2),
-            Text(data.range, style: TextStyle(color: isDark ? Colors.white38 : const Color(0xFFB0B8B3), fontSize: 11)),
+            Text(
+              data.range,
+              style: TextStyle(
+                color: isDark ? Colors.white38 : const Color(0xFFB0B8B3),
+                fontSize: 11,
+              ),
+            ),
           ],
         ),
       ),

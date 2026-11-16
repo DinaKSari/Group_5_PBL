@@ -11,16 +11,17 @@ class FirebaseAuthRepository implements AuthRepository {
   const FirebaseAuthRepository();
 
   String _pesan(FirebaseAuthException e) => switch (e.code) {
-        'invalid-email' => 'Format email tidak valid.',
-        'user-not-found' || 'wrong-password' || 'invalid-credential' =>
-          'Email atau kata sandi salah.',
-        'email-already-in-use' => 'Email sudah terdaftar. Silakan masuk.',
-        'weak-password' => 'Kata sandi terlalu lemah (minimal 6 karakter).',
-        'user-disabled' => 'Akun ini dinonaktifkan.',
-        'too-many-requests' => 'Terlalu banyak percobaan. Coba lagi sebentar.',
-        'network-request-failed' => 'Tidak ada koneksi internet.',
-        _ => _takTerkenal(e),
-      };
+    'invalid-email' => 'Format email tidak valid.',
+    'user-not-found' ||
+    'wrong-password' ||
+    'invalid-credential' => 'Email atau kata sandi salah.',
+    'email-already-in-use' => 'Email sudah terdaftar. Silakan masuk.',
+    'weak-password' => 'Kata sandi terlalu lemah (minimal 6 karakter).',
+    'user-disabled' => 'Akun ini dinonaktifkan.',
+    'too-many-requests' => 'Terlalu banyak percobaan. Coba lagi sebentar.',
+    'network-request-failed' => 'Tidak ada koneksi internet.',
+    _ => _takTerkenal(e),
+  };
 
   /// Pesan mentah Firebase berbahasa Inggris dan tidak bisa ditindaklanjuti
   /// petani; kodenya masuk log supaya cabang di atas bisa ditambah.
@@ -76,7 +77,9 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<({bool sent, Failure? failure})> sendPasswordReset(String email) async {
+  Future<({bool sent, Failure? failure})> sendPasswordReset(
+    String email,
+  ) async {
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
       return (sent: true, failure: null);
@@ -86,35 +89,52 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<({bool updated, Failure? failure})> updateDisplayName(String name) async {
+  Future<({bool updated, Failure? failure})> updateDisplayName(
+    String name,
+  ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await user.updateDisplayName(name.trim());
         await user.reload();
+        Session.name = name.trim();
         return (updated: true, failure: null);
       }
-      return (updated: false, failure: const AuthFailure('Pengguna tidak ditemukan.'));
+      return (
+        updated: false,
+        failure: const AuthFailure('Pengguna tidak ditemukan.'),
+      );
     } on FirebaseAuthException catch (e) {
       return (updated: false, failure: AuthFailure(_pesan(e)));
     } catch (e) {
-      return (updated: false, failure: AuthFailure('Gagal memperbarui nama: $e'));
+      return (
+        updated: false,
+        failure: AuthFailure('Gagal memperbarui nama: $e'),
+      );
     }
   }
 
   @override
-  Future<({bool updated, Failure? failure})> updatePassword(String newPassword) async {
+  Future<({bool updated, Failure? failure})> updatePassword(
+    String newPassword,
+  ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await user.updatePassword(newPassword);
         return (updated: true, failure: null);
       }
-      return (updated: false, failure: const AuthFailure('Pengguna tidak ditemukan.'));
+      return (
+        updated: false,
+        failure: const AuthFailure('Pengguna tidak ditemukan.'),
+      );
     } on FirebaseAuthException catch (e) {
       return (updated: false, failure: AuthFailure(_pesan(e)));
     } catch (e) {
-      return (updated: false, failure: AuthFailure('Gagal memperbarui kata sandi: $e'));
+      return (
+        updated: false,
+        failure: AuthFailure('Gagal memperbarui kata sandi: $e'),
+      );
     }
   }
 
