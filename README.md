@@ -668,35 +668,46 @@ perangkat/keystore milik manusia (lihat `docs/RUNBOOK_MANUAL.md` R7).
 
 # 📁 Struktur Repository
 
-Struktur repository akan dikembangkan mengikuti pemisahan komponen utama project:
+Kondisi aktual setelah integrasi Flutter → Laravel → Flask (bukan lagi rencana awal):
 
 ```text
 Group_5_PBL/
 │
 ├── ML/
-│   ├── dataset/
-│   ├── notebooks/
-│   ├── preprocessing/
-│   ├── models/
+│   ├── api/                    app.py (Flask :5000), train.py, requirements.txt (dipin),
+│   │                           artifacts/*.joblib (model terlatih — ikut di git), test_app.py
+│   ├── data/                   lettuce_dataset_training.csv / .xlsx
+│   ├── reports/                hasil evaluasi & grafik
+│   ├── model_ml_pbl_group5.ipynb          EDA + pipeline utama (dipakai di laporan)
+│   ├── klasifikasi_perbandingan_selada.ipynb, PBL_..._Muhammad_Pearl_Ocshada.ipynb
 │   └── README.md
 │
 ├── smart_farming/
-│   ├── mobile/
-│   ├── backend/
-│   └── README.md
+│   ├── lib/                    Flutter (Clean Architecture per fitur: domain/data/presentation)
+│   │   ├── core/               api_client, failures, error_messages, remote_settings, session
+│   │   └── features/           auth, home, history, prediction, sensor, notification, onboarding
+│   ├── test/                   74 tes (unit + kontrak HTTP + widget)
+│   ├── android/                applicationId com.lettgrow.app (namespace masih com.example.smart_farming)
+│   ├── tool/                   run_android.ps1, make_keystore.ps1, build_release.ps1
+│   └── backend/                Laravel 13 + Filament (API :8000 + panel /admin)
+│       ├── app/                models, HTTP controllers, middleware VerifyFirebaseIdToken, resources
+│       ├── database/           9 migration + seeder admin (kredensial dari .env, tanpa default)
+│       ├── routes/api.php      /predict, /predictions, /sensor, /sensor/latest, /devices —
+│       │                       semuanya di dalam group middleware firebase.auth
+│       └── .env.example        satu-satunya template kredensial yang masuk git
 │
-├── Documents/
-│   ├── Proposal/
-│   ├── QA/
-│   ├── Testing/
-│   └── Reports/
-│
+├── deploy/                     menjadikan laptop server: start_tunnel.ps1/.bat, windows-autostart/
+│                               (task SYSTEM saat boot), logs/ (gitignored), README.md
+├── tool/                       migrate_sqlite_to_mysql.php (proses migrasi data lama)
+├── docs/                       PLAN.md, RUNBOOK_MANUAL.md (langkah manusia-only + tes perangkat)
+├── Documents/                  Proposal, QA (test case & RTM), Testing, Reports
 ├── Screenshots/
-│
-└── README.md
+└── run_all.bat                 pintasan development (Flask + Laravel + flutter run)
 ```
 
-> Struktur folder dapat berubah selama proses pengembangan sesuai kebutuhan implementasi.
+File kredensial yang **sengaja tidak masuk git**: `smart_farming/backend/.env`, service account
+Firebase di `backend/storage/app/private/`, `android/app/google-services.json`,
+`android/key.properties`, keystore, `deploy/tunnel.config.json`. Lihat §2 di bawah.
 
 ---
 
@@ -778,29 +789,346 @@ Semester 5 — Tahun Akademik 2026/2027.
 
 ---
 
-# 🚀 Cara Menjalankan (Deployment)
+# 🚀 Cara Menjalankan Project di Laptop Kalian
 
-Sistem berjalan sebagai **3 layanan** di jaringan lokal yang sama (laptop + perangkat Android/emu):
+Panduan langkah demi langkah untuk anggota kelompok yang baru pertama kali menyalakan project ini
+di laptop sendiri (Windows). Semua perintah di PowerShell; perintah `cmd.exe` diberi tanda. Kalau
+ada yang gagal, langsung ke **§10 Troubleshooting** — gejalanya sudah dipetakan ke penyebabnya.
 
-| Layanan  | Perintah (dari folder)         | Alamat                   |
-| -------- | ------------------------------ | ------------------------ |
-| ML Flask | `python ML/api/app.py`         | `http://<ip>:5000` (`/predict`, `/health`) |
-| Laravel  | `php artisan serve --host=0.0.0.0 --port=8000` (di `backend/`) | `http://<ip>:8000/api` + admin `/admin` |
-| Flutter  | `flutter run` / `flutter build apk --release` (di `smart_farming/`) | aplikasi di perangkat |
+## 🗺️ Peta sistem (baca dulu 30 detik)
 
-**Jalan pintas satu perintah**: jalankan `run_all.bat` di root repo. Skrip ini
-membangkitkan Flask (5000) & Laravel (0.0.0.0:8000) pada terminal terpisah,
-melakukan health-check dengan `curl`, mencetak IPv4 LAN, lalu (mode `flutter`/`apk`)
-menjalikan aplikasi. Mode: `run_all.bat flutter` | `apk` | `none`.
+```text
+HP / emulator
+   │  http(s)://<host>:8000/api   (+ header Authorization: idToken Firebase)
+   ▼
+Laravel  :8000  ──►  MySQL :3306        database `smart_farming`
+   │        └──►     Flask ML :5000     hanya bind 127.0.0.1, wajib header X-ML-Token
+   │                        └──►        ML/api/artifacts/*.joblib (model terlatih, ikut di repo)
+   └──►  /admin   panel Filament
 
-> `smart_farming/lib/config/api_config.dart` mengarahkan `baseUrl` ke `10.0.2.2:8000`
-> (emulator). Untuk perangkat fisik, ubah ke IPv4 LAN laptop (mis. `192.168.1.x`)
-> dan pastikan `AndroidManifest.xml` mengizinkan cleartext HTTP — keduanya khusus
-> pengujian lokal.
+ngrok (opsional) : 8000  ──►  https://<domain>.ngrok-free.dev/api   untuk user di luar LAN
+```
 
-**Panel Admin (Filament)**: buka `http://<ip>:8000/admin` → login
-`admin@gmail.com` / `12345678`. Menu: Predictions (kolom **Petani** menampilkan
-identitas penginput via tabel `app_users`), Sensor Readings, Activity Logs.
+| Komponen          | Folder                      | Port | Dijalankan oleh                      |
+| ----------------- | --------------------------- | ---- | ------------------------------------ |
+| Aplikasi Flutter  | `smart_farming/`            | —    | `flutter run` / APK di HP            |
+| Laravel API+admin | `smart_farming/backend/`    | 8000 | `php artisan serve`                  |
+| Flask ML          | `ML/api/`                   | 5000 | `python app.py`                      |
+| MySQL             | `C:\laragon\bin\mysql\...`  | 3306 | Laragon, atau `start_tunnel.ps1`     |
+| Tunnel publik     | `deploy/`                   | 4040 | `deploy\start_tunnel.ps1` (ngrok)    |
+
+**Tiga hal yang tidak boleh tertukar:** Flask ML tidak boleh diakses langsung dari HP (Laravel yang
+manggil, pakai rahasia bersama), `/admin` adalah panel Filament (bukan bagian API), dan tanpa
+MySQL yang hidup seluruh endpoint API gagal walaupun Laravel terlihat "jalan".
+
+---
+
+## 1. Prasyarat — versi yang teruji di laptop ini
+
+| Alat          | Versi teruji             | Cek versi                | Catatan                                                        |
+| ------------- | ------------------------ | ------------------------ | -------------------------------------------------------------- |
+| Git           | 2.x                      | `git --version`          | —                                                              |
+| PHP           | 8.5.5 NTS x64 (min 8.3)  | `php -v`                 | butuh ekstensi `pdo_mysql`, `curl`, `mbstring`, `openssl`, `zip` |
+| Composer      | 2.9.5                    | `composer -V`            | —                                                              |
+| MySQL         | 8.0.30 (Community)       | `mysqld --version`       | paling praktis lewat **Laragon** (sudah membawa PHP + MySQL)   |
+| Python        | 3.10.6                   | `python --version`       | Flask ML; versi paket diikat di `ML/api/requirements.txt`      |
+| Flutter       | 3.47.1 stable            | `flutter --version`      | Dart 3.13.1 (`pubspec.yaml` minta `sdk: ^3.13.1`)              |
+| Android SDK   | lewat Android Studio     | `flutter doctor`         | build APK rilis butuh `cmdline-tools` + `build-tools`         |
+| JDK           | 17 (teruji 21.0.12)      | `java -version`          | AGP 9.1.0 / Gradle 9.3.1 diunduh otomatis oleh wrapper         |
+| ngrok         | 3.x + akun free          | `ngrok version`          | **hanya** kalau mau URL publik                                 |
+| Node.js       | 24.11 (opsional)         | `node -v`                | hanya untuk `npm run build`; API & Filament tidak membutuhkannya |
+
+```powershell
+flutter doctor    # yang boleh merah cuma hal yang tidak dipakai project ini (iOS/Visual Studio/Chrome)
+```
+
+Instalasi paling ringkas di Windows: **Laragon** (PHP+MySQL+Composer) → **Android Studio** (SDK+JDK)
+→ **Flutter SDK** → **Python 3.10** → tambahkan `flutter/bin`, `laragon/bin/php/...`,
+`laragon/bin/mysql/.../bin` ke `PATH`.
+
+---
+
+## 2. Yang TIDAK ikut ter-clone (harus dibuat/diambil sendiri)
+
+Sengaja tidak masuk git karena berisi kredensial. Tanpa `google-services.json` **dan** service
+account JSON, tidak ada seorang pun bisa login — bukan sekadar fitur yang hilang.
+
+| File yang hilang                                | Di mana ditaruh                                 | Dari mana                                                   | Efek kalau tidak ada                          |
+| ----------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------- |
+| `google-services.json`                          | `smart_farming/android/app/`                    | Firebase Console → project → Android app `com.lettgrow.app` | `flutter run`/build Android gagal             |
+| service account JSON (admin SDK)                 | `smart_farming/backend/storage/app/private/`    | Console → Project settings → Service accounts → Generate     | semua endpoint API balas **503**              |
+| `smart_farming/backend/.env`                    | —                                               | salin dari `.env.example` (lihat §5)                         | Laravel tidak punya `APP_KEY`/DB              |
+| keystore + `android/key.properties`             | `%USERPROFILE%\.android` + `smart_farming/android/` | `tool\make_keystore.ps1` (lihat §9)                     | APK rilis ditolak build (kecuali `-AllowDebugSigning`) |
+| `deploy/tunnel.config.json` (opsional)          | `deploy/`                                       | salin dari `tunnel.config.example.json`                      | hanya kalau autofinder salah tebak path       |
+
+> Project Firebase kelompok: **`smart-farming-683ec`**. Minta akses anggota ke pemilik project —
+> kredensial service account tidak dikirim lewat chat, unduh sendiri dari Console.
+
+---
+
+## 3. Clone repository
+
+```powershell
+git clone https://github.com/DinaKSari/Group_5_PBL.git
+cd Group_5_PBL
+git checkout feature-letugrow-m1-keamanan-mysql
+```
+
+⚠️ **Status hari ini (2026-11-16):** branch `feature-letugrow-m1-keamanan-mysql` — yang berisi
+integrasi Flutter → Laravel, autentikasi Firebase nyata, database MySQL, skrip `deploy/` dan build
+rilis — **belum di-push** (kebijakan tim: `git push` harus diminta eksplisit). Branch ini 24 commit
+di depan `origin/main` dan `origin/davelop`. Sampai branch itu di-push, kalian harus minta salinan
+repo dari laptop pemilik branch, atau minta push ke GitHub. Di `origin/main`/`origin/davelop` folder
+`deploy/` belum ada.
+
+---
+
+## 4. Nyalakan MySQL + buat database
+
+Laragon: klik **Start All** (MySQL jalan tanpa service Windows). Lalu:
+
+```powershell
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS smart_farming CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -e "SHOW DATABASES LIKE 'smart_farming';"
+```
+
+`root` tanpa password adalah setup laptop kuliah ini. Aman selama MySQL tidak `listen` di publik —
+jangan dibalik jadi `0.0.0.0` dan jangan dipakai di mesin yang bisa diakses orang lain.
+
+---
+
+## 5. Backend Laravel (API + panel admin)
+
+```powershell
+cd smart_farming\backend
+composer install
+Copy-Item .env.example .env
+php artisan key:generate
+```
+
+Edit `.env`, isi kelompok key berikut (semuanya sudah ada di file, tinggal diisi):
+
+| Key                      | Isi seperti apa                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `APP_DEBUG`              | `false` wajib begitu ada tunnel/ngrok. `true` hanya saat debugging LAN.                                           |
+| `DB_*`                   | `mysql / 127.0.0.1 / 3306 / smart_farming / root /` (password kosong) — sudah benar, cukup dicek.                 |
+| `FIREBASE_CREDENTIALS`   | path relatif, mis. `storage/app/private/<nama-file-service-account>.json`                                         |
+| `FIREBASE_PROJECT_ID`    | `smart-farming-683ec`                                                                                             |
+| `FLASK_ML_SHARED_SECRET` | string acak 32 byte, **harus sama persis** dengan `ML_SHARED_SECRET` milik Flask. Generate: `php -r "echo bin2hex(random_bytes(32));"` |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | akun panel `/admin`. Seeder **menolak jalan** kalau kosong, dan `ADMIN_PASSWORD` minimal 12 karakter. Tidak ada lagi password default `12345678`. |
+
+```powershell
+php artisan migrate --seed        # 9 migration + akun admin Filament
+php artisan test                  # harapan: 29 passed (90 assertions)
+```
+
+Panel admin: `http://127.0.0.1:8000/admin/login` (login pakai `ADMIN_EMAIL`/`ADMIN_PASSWORD`).
+Menu: Predictions, Sensor Readings, Activity Logs.
+
+> `SERVER_HOST=0.0.0.0` di `.env` dibaca oleh `php artisan serve` (teruji: tanpa flag `--host`
+> server langsung bind `0.0.0.0:8000`), jadi HP di satu Wi-Fi bisa langsung mengakses.
+> Kalau laptop dipakai di jaringan yang tidak dipercaya, jalankan
+> `php artisan serve --host=127.0.0.1` saja.
+
+---
+
+## 6. Flask ML
+
+Dari folder `smart_farming\backend` (lanjutan §5) — atau ketik path absolut:
+
+```powershell
+cd ..\..\ML\api
+python -m pip install -r requirements.txt
+$env:ML_SHARED_SECRET = "<nilai FLASK_ML_SHARED_SECRET dari backend/.env>"
+python app.py                    # jendela ini terpakai: Flask adalah server, jangan ditutup
+```
+
+Flask hanya bind `127.0.0.1`, jadi ia memang tidak dirancang untuk diakses HP langsung — hanya
+Laravel yang memanggilnya.
+
+Uji di terminal lain (Flask hanya menerima panggilan ber-token):
+
+```powershell
+curl.exe http://127.0.0.1:5000/health     # harapan: "status":"ok" + models_loaded semua true
+curl.exe -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" -d '{}'
+#   harapan: 401 (tanpa header X-ML-Token, Flask menolak = perilaku benar)
+```
+
+> ⚠️ `ML/api/test_app.py` **sudah tertinggal dari implementasi: 5 dari 6 tesnya gagal** saat
+> dijalankan sekarang (`python -m unittest test_app -v`): file itu tidak mengirim header `X-ML-Token`
+> yang kini wajib, dan dua tesnya memanggil `/devices` yang sudah pindah dari Flask ke Laravel
+> (`POST /api/devices`). Satu-satunya tes yang lulus adalah `/health`. Perintah itu sengaja
+> **tidak** dimasukkan ke checklist §11 sampai file tesnya disinkronkan.
+
+**Kenapa versi paket dipin:** `model.joblib`/`cluster.joblib` dipickle oleh numpy 2.x dan
+`classifier.joblib` butuh xgboost. numpy 1.x = gagal muat artefak, dan gejalanya bukan "model tidak
+akurat" tapi prosesnya mati saat startup. Jangan melatih ulang (`python train.py`) dengan
+lingkungan berbeda kecuali kalian ikut men-commit artefak barunya.
+
+Kalau kalian menjalankan Flask lewat `run_all.bat` atau `deploy\start_tunnel.ps1`, **tidak perlu**
+men-set `$env:ML_SHARED_SECRET` manual — kedua skrip itu mengambil rahasianya dari `backend/.env`
+(satu sumber kebenaran).
+
+---
+
+## 7. Aplikasi Flutter
+
+```powershell
+cd ..\..\smart_farming
+flutter pub get
+flutter analyze                # harapan: 0 error (4 info `withOpacity` deprecated memang sudah ada)
+flutter test                   # harapan: 74 test, "All tests passed!"
+```
+
+Sambungkan HP dengan USB debugging (atau emulator), lalu satu perintah ini sudah cukup — ia
+memeriksa Flask 5000 & Laravel 8000 (menyalakan yang mati di jendela baru dengan `-StartBackend`),
+memasang `adb reverse tcp:8000 tcp:8000`, lalu `flutter run`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tool\run_android.ps1 -StartBackend
+# -CheckOnly  = hanya periksa backend, jangan launch
+# -Device <id> / -Port <n> / -MlPort <n>
+```
+
+Karena ada forwarding ADB, HP melihat laptop sebagai `127.0.0.1:8000` — tidak bergantung IP laptop,
+tidak bergantung Wi-Fi, dan tetap jalan di jaringan yang memblokir antar-perangkat (Wi-Fi kampus).
+Alternatif tanpa kabel (HP & laptop harus saling terjangkau):
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://IP-LAPTOP:8000/api    # perangkat fisik
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api     # emulator Android
+```
+
+Alur uji manual yang paling cepat: **Register** (Firebase Auth, butuh `google-services.json`) →
+**Beranda** (monitoring live dari backend) → **Catat Parameter Kebun** (5 nilai; coba pH 12 untuk
+melihat validasi) → **Prediksi** → tab **Riwayat**.
+
+---
+
+## 8. Menyediakan API untuk user nyata (tunnel ngrok) — opsional
+
+Dipakai hanya kalau HP tidak berada di jaringan yang sama dengan laptop / user sudah di luar.
+
+```powershell
+cd deploy
+.\start_tunnel.ps1              # MySQL → Flask → Laravel → ngrok, cetak URL publik
+```
+
+| Bendera          | Fungsi                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| _(tanpa)_        | nyalakan semuanya; idempoten: port yang sudah hidup dilewati                                        |
+| `-Status`        | lihat apa yang hidup + URL publik, tanpa mengubah apa pun                                          |
+| `-Stop`          | matikan Laravel/Flask/ngrok milik skrip (MySQL dibiarkan); tambah `-MySql` untuk mematikan MySQL dengan `mysqladmin shutdown` (rapi, bukan kill paksa) |
+| `-NoNgrok`       | lokal saja (HP lewat `adb reverse` / Wi-Fi)                                                          |
+| `-TakeOver`      | rebut port 8000 dari `php artisan serve` asing yang jalan di jendela konsol kalian                  |
+| `-WebPort` / `-MlPort` / `-Workers` | ubah port / jumlah worker (`PHP_CLI_SERVER_WORKERS`)                     |
+
+Skrip berhenti dengan pesan jelas, bukan diam-diam, kalau: `FLASK_ML_SHARED_SECRET` kosong,
+`APP_DEBUG` masih `true`, atau `/api/sensor/latest` tidak membalas **401 JSON** — tiga syarat bahwa
+API benar-benar sehat sebelum tunnel dibuka.
+
+URL publik hasil skrip disimpan di `deploy\last-url.txt`; daftarkan nilai itu sebagai parameter
+Remote Config `api_base_url` (lihat `docs/RUNBOOK_MANUAL.md` R4) supaya APK tidak perlu dibangun
+ulang setiap tunnel berganti alamat. ⚠️ Kuota ngrok free 20.000 request/bulan — **jangan pernah**
+menambah polling `Timer` di aplikasi.
+
+Autostart setelah boot (butuh Administrator sekali, dan membuat laptop menjadi server publik setiap
+kali menyala — baca konsekuensinya di `deploy/README.md`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows-autostart\install-autostart.ps1
+```
+
+---
+
+## 9. Build APK rilis (untuk dibagikan ke HP teman)
+
+```powershell
+cd smart_farming
+powershell -ExecutionPolicy Bypass -File tool\make_keystore.ps1     # SEKALI seumur hidup
+powershell -ExecutionPolicy Bypass -File tool\build_release.ps1     # tiap rilis
+```
+
+- `make_keystore.ps1` menanyakan passphrase dua kali lewat prompt tersembunyi (tidak pernah tercetak,
+  tidak pernah lewat chat) dan menulis `android/key.properties`. **Salin file `.keystore` ke luar
+  laptop** — tanpanya APK baru tidak bisa dipasang menimpa versi lama.
+- `build_release.ps1` membaca `version:` dari `pubspec.yaml` → `--dart-define=APP_VERSION=...`,
+  menolak build tanpa `key.properties`, lalu memverifikasi tanda tangan dengan
+  `apksigner verify --print-certs`. Bendera: `-ApiBaseUrl <url>` (menembak base URL ke build),
+  `-Clean`, `-AllowDebugSigning` (untuk coba-coba, jangan dipakai rilis).
+- Artefak: `build/app/outputs/flutter-apk/app-release.apk` (±55 MB; APK, bukan AAB, karena AAB tidak
+  bisa di-sideload).
+
+Pasang ke HP:
+
+```powershell
+adb devices
+adb uninstall com.lettgrow.app        # WAJIB kalau HP pernah menerima APK debug/package lama
+adb install build\app\outputs\flutter-apk\app-release.apk
+```
+
+Tanpa `adb uninstall` dulu, install gagal dengan `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (tanda tangan
+debug ≠ rilis), dan package `com.kelompok5.smart_farming` lama dianggap aplikasi yang berbeda.
+Manifest rilis hanya HTTPS — `usesCleartextTraffic` hanya ada di `android/app/src/debug/`.
+
+---
+
+## 10. Troubleshooting
+
+| Gejala                                                                    | Penyebab paling mungkin                                                       | Solusi                                                                 |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Semua API balas **503** `"Autentikasi server belum terkonfigurasi."`             | `FIREBASE_CREDENTIALS` kosong / file service account tidak ada                 | taruh JSON di `backend/storage/app/private/`, isi path-nya, `php artisan config:clear` |
+| Prediksi balas **503** `"Layanan prediksi ML tidak dapat dihubungi."`            | Flask mati, atau `FLASK_ML_SHARED_SECRET` (Laravel) ≠ `ML_SHARED_SECRET` (Flask) | nyalakan Flask; samakan persis; jalankan Flask lewat `run_all.bat`/`start_tunnel.ps1` biar diambil dari `.env` |
+| Prediksi balas **503** `"Model ML belum siap..."`                                 | artefak `artifacts/*.joblib` tidak bisa dimuat                                  | `python -m pip install -r ML/api/requirements.txt` (versi dipin, lihat §6)              |
+| `python app.py` langsung mati saat startup                               | versi numpy/xgboost tidak cocok dengan artefak `.joblib`                       | `python -m pip install -r ML/api/requirements.txt` (jangan upgrade sebagian) |
+| `Failed to load ... google-services.json` saat `flutter run`             | file belum diunduh dari Console                                                | §2; pastikan package id `com.lettgrow.app`                             |
+| `SQLSTATE[HY000] [1049] Unknown database 'smart_farming'`                 | database belum dibuat / MySQL Laragon belum Start All                          | §4                                                                      |
+| Seeder error `ADMIN_EMAIL dan ADMIN_PASSWORD`                             | `.env` belum diisi                                                             | isi keduanya; `ADMIN_PASSWORD` ≥ 12 karakter                           |
+| HP tidak bisa mengakses `http://<ip-laptop>:8000`                         | beda jaringan / Windows Firewall / client isolation Wi-Fi kampus               | pakai `tool\run_android.ps1` (adb reverse) — jalur USB tidak lewat Wi-Fi |
+| `Address already in use` saat `artisan serve`                             | port 8000 sudah dipegang Laravel lain / Laragon                                | `.\deploy\start_tunnel.ps1 -Status` lalu `-TakeOver`                   |
+| `start_tunnel.ps1` berhenti: `API tidak balas 401 JSON`                   | yang menjawab 8000 bukan Laravel sehat (halaman error/`APP_DEBUG` aktif)       | perbaiki Laravel-nya dulu; ini gerbang pengaman, bukan bug skrip        |
+| `start_tunnel.ps1 -Stop` gagal `could not be terminated`                  | layanan jalan sebagai SYSTEM (task autostart) di Session 0                     | PowerShell *Run as administrator* → `Disable-ScheduledTask -TaskName 'LettuGrow Tunnel'` lalu `-Stop` |
+| Login di app gagal terus padahal akun sudah daftar                        | `google-services.json` milik project Firebase lain                             | keduanya harus project `smart-farming-683ec`                            |
+| Muncul halaman interstitial "You are about to visit..." di browser        | header `ngrok-skip-browser-warning` tidak dikirim (normal untuk app)           | buka lewat aplikasi/`curl -H "ngrok-skip-browser-warning: x"`, bukan address bar |
+| Stack trace/config terlihat di respons error                              | `APP_DEBUG=true` dan ada cache config lama                                     | set `false` lalu `php artisan config:clear`                             |
+| Rilis tidak bisa dipasang di HP yang sudah ada APK debug                  | tanda tangan beda                                                              | `adb uninstall com.lettgrow.app`                                        |
+
+---
+
+## 11. Checklist verifikasi (semua harus hijau sebelum bilang "di laptopku jalan")
+
+| Perintah                                                                       | Harapan                                   |
+| ------------------------------------------------------------------------------ | ----------------------------------------- |
+| `cd smart_farming\backend && php artisan test`                                 | `29 passed (90 assertions)`               |
+| `cd ML\api && python -m unittest test_app -v`                                  | **BUKAN bukti lulus** — 5/6 gagal, file tes belum sinkron (§6) |
+| `cd smart_farming && flutter test`                                             | `+74: All tests passed!`                  |
+| `curl.exe http://127.0.0.1:5000/health`                                        | `"status":"ok"`                           |
+| `curl.exe http://127.0.0.1:8000/up`                                            | 200                                       |
+| `curl.exe http://127.0.0.1:8000/api/sensor/latest`                             | **401 + JSON** (bukan 200, bukan HTML)     |
+| `curl.exe -X POST http://127.0.0.1:8000/api/predict -d '{}' -H "Content-Type: application/json"` | 401 JSON, tanpa kata `"exception"`/`"trace"` |
+| buka `/admin/login`                                                            | 200, login dengan akun dari `.env`        |
+| app: login → catat parameter → prediksi → riwayat                              | hasil "X Hari Lagi" nyata, riwayat terisi |
+
+---
+
+## 12. Ringkasan untuk yang sudah pernah setup
+
+```powershell
+# backend + ML + app, satu jendela per layanan (dev, bind 0.0.0.0)
+.\run_all.bat flutter          # atau: apk | none
+
+# pastikan backend hidup, pasang adb reverse, lalu flutter run ke HP via USB
+powershell -ExecutionPolicy Bypass -File smart_farming\tool\run_android.ps1 -StartBackend
+
+# laptop ini jadi server publik (MySQL → Flask → Laravel → ngrok)
+.\deploy\start_tunnel.ps1
+.\deploy\start_tunnel.ps1 -Status        # cek cepat, tidak mengubah apa pun
+```
+
+Dokumen pendamping: `docs/RUNBOOK_MANUAL.md` (langkah yang hanya bisa dilakukan manusia: Firebase
+Console, rotasi rahasia, tes di perangkat), `docs/PLAN.md` (keputusan teknis), `deploy/README.md`
+(detail skrip tunnel & kuota ngrok), `smart_farming/README.md` (arsitektur clean architecture app).
+
 
 ---
 
@@ -815,14 +1143,14 @@ identitas penginput via tabel `app_users`), Sensor Readings, Activity Logs.
 | EDA                    | 🟢 Selesai (`ML/model_ml_pbl_group5.ipynb`)               |
 | Preprocessing          | 🟢 Selesai                                                |
 | Machine Learning Model | 🟢 Selesai (Regresi + Klasifikasi + Klusterisasi, evaluasi jujur) |
-| Flask REST API         | 🟢 Selesai & Teruji (`/predict`, `/health`, `/devices`)   |
-| Flutter Application    | 🟢 Register/Login Firebase Auth, monitoring & riwayat dari backend |
+| Flask REST API         | 🟢 `/health` + `/predict` (hanya bind 127.0.0.1, wajib `X-ML-Token`) · 🟡 `test_app.py` 5/6 gagal, belum sinkron — lihat §6 panduan |
+| Flutter Application    | 🟢 Register/Login Firebase Auth, monitoring & riwayat dari backend, entri parameter manual |
 | Laravel Admin Panel    | 🟢 Filament (`/admin`): kelola prediksi, sensor, log, kolom Petani (identitas Tier-3 `app_users`) |
-| Database               | 🟢 Laravel + SQLite (`predictions`, `sensor_readings`, `app_users`, `activity_logs`) |
+| Database               | 🟢 **MySQL 8** (`predictions`, `sensor_readings`, `app_users`, `activity_logs`) — SQLite ditinggalkan 2026-11-16, datanya dipindah lewat `tool/migrate_sqlite_to_mysql.php` |
 | Integration            | 🟢 End-to-end Flutter → Laravel → Flask → ML teruji (device + smoke test)  |
-| Release / Deployment   | 🟢 APK `--release` terpasang di perangkat; `run_all.bat` 1-perintah (Flask+Laravel) |
-| Testing                | 🟢 QA Plan & Backend Unit Testing (`test_app.py`) Selesai |
-| Documentation          | 🟢 README disinkronkan (temuan ML jujur) + screenshot + RTM |
+| Release / Deployment   | 🟢 APK `--release` terpasang di perangkat; `deploy\start_tunnel.ps1` (MySQL→Flask→Laravel→ngrok) + autostart SYSTEM · 🟡 branch kerja belum di-push |
+| Testing                | 🟢 Laravel 29 tes (90 assertion) & Flutter 74 tes lulus · 🟡 6 tes Flask belum disinkronkan |
+| Documentation          | 🟢 README (panduan jalan §Cara Menjalankan) + `docs/PLAN.md` + `docs/RUNBOOK_MANUAL.md` + RTM |
 
 ---
 
