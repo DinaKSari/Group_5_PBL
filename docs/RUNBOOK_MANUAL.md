@@ -86,7 +86,11 @@ Keputusan, bukan perintah terminal. Kirim jawabannya dalam satu pesan:
       (tidak ada `exception`/`file`/`trace` yang keluar). URL tersimpan di `deploy\last-url.txt`.
       Skripnya sendiri: `deploy\start_tunnel.bat` (klik dua kali) atau
       `.\deploy\start_tunnel.ps1`; `-Status` melihat tanpa mengubah apa pun, `-Stop` matikan
-      Laravel/Flask/ngrok (MySQL dibiarkan), `-NoNgrok` lokal saja.
+      Laravel/Flask/ngrok (MySQL dibiarkan), `-NoNgrok` lokal saja, `-TakeOver` mengusir proses
+      asing yang memegang port 8000 (mis. `php artisan serve` dari jendela konsol sendiri) supaya
+      skrip yang memegangnya. Sejak `8d82c56` skrip tidak lagi percaya "port 8000 sibuk": ia
+      mencocokkan PID pemilik port dengan pid file miliknya dan menolak membuka tunnel kalau
+      `/api/sensor/latest` tidak membalas 401 JSON.
       ⚠️ Ini status **sekarang**, bukan permanen: tunnel mati begitu laptop mati atau ngrok
       keluar — pemulihan otomatis baru ada sejak item 7 di bawah terpasang (2026-11-16).
 - [x] 7. **Autostart TerPASANG & teruji tanpa reboot (2026-11-16)** — task `LettuGrow Tunnel`
@@ -278,7 +282,13 @@ Sebelum install ke HP: `adb uninstall com.lettgrow.app` dulu.
       yang sama dengan user kalian: 5 menit = 288 request/hari ≈ 8.600/bulan (43% jatah
       20.000), 15 menit = ±2.880/bulan dan tetap menangkap laptop yang mati.
       (`/up` sudah tersedia sebagai health route — lihat `smart_farming/backend/bootstrap/app.php:13`;
-      URL aktif juga selalu dicetak `.\deploy\start_tunnel.ps1 -Status`)
+      URL aktif juga selalu dicetak `.\deploy\start_tunnel.ps1 -Status`). Catatan sejak `8d82c56`:
+      `/up` hanya membuktikan framework boot. Kalau mau monitor yang menangkap API mati padahal
+      halaman hidup, arahkan monitor ke `.../api/sensor/latest` dan tandai **UP** saat respons
+      keyword check berisi `Sesi tidak valid` (respons aslinya
+      `{"message":"Sesi tidak valid: token autentikasi tidak dikirim."}` dengan status 401 —
+      UptimeRobot menghitung 4xx sebagai UP, jadi tanpa keyword check monitor ini tidak ada
+      gunanya). Jumlah request-nya sama, tetap 1 per interval.
 - [ ] 2. Kabari saya dashboard-nya aktif (atau kirim URL-nya).
 - [ ] 3. Tentukan folder tujuan backup harian (di luar laptop). Job `mysqldump` + rotasinya
       **belum saya tulis** karena lokasinya memang keputusan kalian (item plan 2.5.7) —
@@ -322,16 +332,32 @@ rangkaian dimatikan lalu `Start-ScheduledTask` menyalakan semuanya kembali dalam
 perlu dinyalakan ulang: me-restart laptop demi tes akan mematikan sesi kerja kalian, jadi itu
 keputusan manusia, bukan tugas saya.
 
-Tiga temuan dari tes #2 — dua masih terbuka, satu sudah diperbaiki:
+Dua temuan dari tes #2 — satu masih terbuka, satu sudah diperbaiki:
 
-1. **MASIH TERBUKA — probe kesehatan `start_tunnel.ps1` salah sasaran.** Script menguji `GET /up`, padahal `/up`
-   bukan rute API di app ini — ia menjawab **200 dengan halaman HTML welcome**. Akibatnya saat
-   penjaga menyalakan ulang barusan, script menyimpulkan "Laravel siap" sedangkan yang menjawab
-   port 8000 adalah `php -S 0.0.0.0:8000` milik konsol Laragon (PID 41460); Laravel yang seharusnya
-   dikelola script tidak ikut dinyalakan. Kalau jendela konsol itu ditutup, tunnel publik kehilangan
-   origin-nya sementara penjaga hanya memeriksa ngrok — tidak ada yang sadar. Perbaikan yang benar:
-   probe `GET /api/sensor/latest` (harus 401 JSON) dan cocokkan pemilik port dengan PID child yang
-   script start, bukan sekadar "port 8000 sibuk".
+1. **SUDAH DIPERBAIKI (`8d82c56`) — penjaga buta terhadap "tunnel hidup, origin mati".**
+   `start_tunnel.ps1` dulu hanya bertanya "port 8000 sibuk?" lalu menguji `GET /up`. Akibatnya saat
+   penjaga menyalakan ulang barusan, ia menyimpulkan "Laravel siap" sedangkan yang menjawab port
+   8000 adalah `php -S 0.0.0.0:8000` milik jendela konsol Laragon (PID 41460) — Laravel kelolaannya
+   tidak ikut dinyalakan, dan begitu jendela itu ditutup tunnel publik kehilangan origin sementara
+   `letugrow-tunnel.ps1` cuma memeriksa API agent ngrok, jadi tidak ada yang sadar. Yang sekarang:
+   - `Get-PortOwner` membandingkan PID pemilik port dengan pid file + proses anak milik skrip.
+     Asing → peringatan keras yang menyebut PID dan command line-nya; mau direbut: `-TakeOver`.
+   - Gerbang sehat pindah ke `GET /api/sensor/latest` yang **wajib 401 + JSON**. `/up` memang rute
+     asli (`health: '/up'` di `bootstrap/app.php`) tapi hanya membuktikan framework boot; 401 JSON
+     membuktikan `routes/api.php` dan middleware `firebase.auth` terpasang. Gerbang gagal →
+     `exit 1` dan **tunnel tidak dibuka**, supaya HP tidak menumpang server setengah hidup.
+   - Penjaga ikut mem-probe API yang sama secara **lokal** (`127.0.0.1:8000`, bukan URL publik —
+     kuota ngrok 20.000/bulan tidak boleh habis untuk health check) dan memanggil
+     `start_tunnel.ps1` sebagai anak proses, karena `exit 1` di dalamnya dulu ikut membunuh
+     seluruh loop penjaga sampai laptop dinyalakan ulang.
+   Terbukti 2026-11-16: parse check kedua skrip bersih; `-Status` normal; jalankan penuh mencetak
+   `Port 8000 dijawab PID 41460 = php.exe [...] - BUKAN Laravel yang skrip ini kelola` lalu
+   `API terverifikasi: /api/sensor/latest balas 401 JSON`, tanpa menyalakan Laravel kedua
+   (`Get-CimInstance Win32_Process` tetap satu `php.exe -S`), dan publik tetap 401/`/admin/login` 200.
+   Loop penjaga dijalankan 14 detik dengan `-CheckSeconds 3`: empat tick sehat, nol pemanggilan
+   `start_tunnel.ps1` (tidak ada thrash). **Belum diuji:** tick di mana origin memang mati —
+   itu butuh pemadaman terkendali lain (`deploy\logs\t2_outage.ps1`) dan baru dibuktikan kalau
+   kalian setuju dijalankan lagi.
 2. **MASIH TERBUKA — cold start selalu mulai dari onboarding.** Setelah `am force-stop`, app membuka slide 1, lalu
    "Lewati" membawa ke form login yang **kosong** — tidak ada opsi "lanjutkan sebagai akun terakhir",
    padahal kredensial hanya diketahui manusia. Untuk pengguna yang sesinya masih berlaku di Firebase
