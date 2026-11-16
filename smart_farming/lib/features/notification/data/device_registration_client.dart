@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/api_client.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../domain/usecases/notification_route_resolver.dart';
@@ -33,12 +34,21 @@ class DeviceRegistrationClient {
       }
       debugPrint('[DeviceRegistration] Gagal ($masked): status ${response.statusCode}.');
       if (response.statusCode == 401) {
-        return (registered: false, failure: const AuthFailure('Sesi kedaluwarsa.'));
+        return (
+          registered: false,
+          failure: const AuthFailure(ErrorMessages.sessionExpired)
+        );
       }
-      return (registered: false, failure: ServerFailure('Status ${response.statusCode}'));
+      return (
+        registered: false,
+        failure: ServerFailure(ErrorMessages.fromResponse(response))
+      );
     } catch (e) {
       debugPrint('[DeviceRegistration] Backend tidak terjangkau ($masked): $e');
-      return (registered: false, failure: NetworkFailure());
+      return (
+        registered: false,
+        failure: const NetworkFailure(ErrorMessages.network)
+      );
     }
   }
 }

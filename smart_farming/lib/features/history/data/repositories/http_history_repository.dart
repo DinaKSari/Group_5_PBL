@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/api_client.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../../../prediction/domain/entities/prediction_request.dart';
@@ -36,9 +37,7 @@ class HttpHistoryRepository implements HistoryRepository {
     } on TimeoutException {
       return (
         items: const <HistoryEntry>[],
-        failure: const ServerFailure(
-          'Server tidak merespons, riwayat belum diperbarui.',
-        ),
+        failure: const ServerFailure(ErrorMessages.offline),
       );
     } catch (e) {
       // Sengaja tidak jatuh ke cache memori: user harus tahu server tidak
@@ -46,21 +45,21 @@ class HttpHistoryRepository implements HistoryRepository {
       // prediksi sama sekali.
       return (
         items: const <HistoryEntry>[],
-        failure: NetworkFailure('Riwayat tidak dapat diambil.'),
+        failure: NetworkFailure(ErrorMessages.fromException(e)),
       );
     }
 
     if (response.statusCode == 401) {
       return (
         items: const <HistoryEntry>[],
-        failure: const AuthFailure('Sesi kedaluwarsa, masuk kembali.'),
+        failure: const AuthFailure(ErrorMessages.sessionExpired),
       );
     }
 
     if (response.statusCode != 200) {
       return (
         items: const <HistoryEntry>[],
-        failure: ServerFailure('Status ${response.statusCode}'),
+        failure: ServerFailure(ErrorMessages.fromResponse(response)),
       );
     }
 
@@ -68,9 +67,7 @@ class HttpHistoryRepository implements HistoryRepository {
     if (body == null) {
       return (
         items: const <HistoryEntry>[],
-        failure: const ServerFailure(
-          'Respons server tidak dapat dibaca (kemungkinan backend sedang mati).',
-        ),
+        failure: const ServerFailure(ErrorMessages.offline),
       );
     }
 

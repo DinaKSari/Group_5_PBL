@@ -8,6 +8,8 @@ import '../../../notification/presentation/providers/notification_providers.dart
 import '../../data/monitoring_service.dart';
 import '../providers/home_providers.dart';
 import '../../../../config/app_version.dart';
+import '../../../../core/error_messages.dart';
+import '../../../../core/failures.dart';
 import '../../../../core/remote_settings.dart';
 import '../../../../core/session.dart';
 import '../../../../routes.dart';
@@ -195,11 +197,11 @@ class _SensorSubtitle extends StatelessWidget {
             ),
         ],
       ),
-      error: (e, st) => const Align(
+      error: (e, st) => Align(
         alignment: Alignment.centerLeft,
         child: Text(
-          'Backend tidak terjangkau — menampilkan kosong (mode offline)',
-          style: TextStyle(color: AppColors.warn, fontSize: 11),
+          e is Failure ? e.message : ErrorMessages.fromException(e),
+          style: const TextStyle(color: AppColors.warn, fontSize: 11),
         ),
       ),
       orElse: () => const SizedBox.shrink(),

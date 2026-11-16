@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 
 import '../../../core/api_client.dart';
+import '../../../core/error_messages.dart';
 import '../../../core/session.dart';
 
 class SensorSnapshot {
@@ -73,15 +74,13 @@ class MonitoringService {
 
       SensorSnapshot? sensor;
       if (responses[0].statusCode == 401) {
-        return const MonitoringData(failure: 'Sesi kedaluwarsa, masuk kembali.');
+        return const MonitoringData(failure: ErrorMessages.sessionExpired);
       }
       // jsonBody (bukan jsonDecode mentah) supaya halaman HTML dari ngrok saat
       // backend mati tidak meng-crash app.
       final sensorBody = ApiClient.jsonBody(responses[0]);
       if (sensorBody == null) {
-        return const MonitoringData(
-          failure: 'Server mengembalikan respons yang tidak dapat dibaca.',
-        );
+        return const MonitoringData(failure: ErrorMessages.offline);
       }
       final s = sensorBody['data'] as Map<String, dynamic>?;
       if (s != null) {
@@ -111,7 +110,7 @@ class MonitoringService {
 
       return MonitoringData(sensor: sensor, prediction: prediction);
     } catch (e) {
-      return MonitoringData(failure: 'Server tidak terjangkau (${e.runtimeType}).');
+      return MonitoringData(failure: ErrorMessages.fromException(e));
     }
   }
 }

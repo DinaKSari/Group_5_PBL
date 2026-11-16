@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/api_client.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../../domain/entities/sensor_entry.dart';
@@ -45,24 +46,18 @@ class HttpSensorRepository implements SensorRepository {
         timeout: _timeout,
       );
     } on SocketException {
-      return const NetworkFailure(
-        'Backend tidak terjangkau. Pastikan Laravel (8000) berjalan.',
-      );
+      return const NetworkFailure(ErrorMessages.network);
     } on TimeoutException {
-      return ServerFailure(
-        'Server tidak menjawab dalam ${_timeout.inSeconds} detik.',
-      );
+      return const ServerFailure(ErrorMessages.offline);
     } catch (e) {
       debugPrint('[HttpSensorRepository] Error: $e');
-      return LocalFailure(e.toString());
+      return LocalFailure(ErrorMessages.fromException(e));
     }
 
     if (response.statusCode == 201 || response.statusCode == 200) return null;
 
     if (response.statusCode == 401) {
-      return const AuthFailure(
-        'Sesi kalian kedaluwarsa. Masuk kembali untuk mencatat.',
-      );
+      return const AuthFailure(ErrorMessages.sessionExpired);
     }
 
     return ServerFailure(_errorMessage(response));
@@ -87,6 +82,6 @@ class HttpSensorRepository implements SensorRepository {
         return message;
       }
     }
-    return 'Server mengembalikan status: ${response.statusCode}';
+    return ErrorMessages.fromResponse(response);
   }
 }

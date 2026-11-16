@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -17,8 +19,15 @@ class FirebaseAuthRepository implements AuthRepository {
         'user-disabled' => 'Akun ini dinonaktifkan.',
         'too-many-requests' => 'Terlalu banyak percobaan. Coba lagi sebentar.',
         'network-request-failed' => 'Tidak ada koneksi internet.',
-        _ => 'Autentikasi gagal: ${e.message ?? e.code}',
+        _ => _takTerkenal(e),
       };
+
+  /// Pesan mentah Firebase berbahasa Inggris dan tidak bisa ditindaklanjuti
+  /// petani; kodenya masuk log supaya cabang di atas bisa ditambah.
+  String _takTerkenal(FirebaseAuthException e) {
+    debugPrint('[Auth] kode tidak terpetakan: ${e.code} (${e.message})');
+    return ErrorMessages.unexpected;
+  }
 
   @override
   Future<({bool signedIn, Failure? failure})> signIn({

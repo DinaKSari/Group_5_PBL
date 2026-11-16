@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/api_client.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../../domain/entities/prediction_request.dart';
@@ -51,20 +52,19 @@ class HttpPredictionRepository implements PredictionRepository {
       debugPrint('[HttpPredictionRepository] SocketException: $e');
       return (
         result: null,
-        failure: const NetworkFailure(
-          'Backend tidak terjangkau. Pastikan Laravel (8000) dan Flask ML (5000) berjalan.',
-        ),
+        failure: const NetworkFailure(ErrorMessages.network),
       );
     } on TimeoutException {
       return (
         result: null,
-        failure: ServerFailure(
-          'Layanan prediksi ML tidak dapat dihubungi (melebihi ${_timeout.inSeconds} detik).',
-        ),
+        failure: const ServerFailure(ErrorMessages.offline),
       );
     } catch (e) {
       debugPrint('[HttpPredictionRepository] Error: $e');
-      return (result: null, failure: LocalFailure(e.toString()));
+      return (
+        result: null,
+        failure: LocalFailure(ErrorMessages.fromException(e)),
+      );
     }
 
     // Laravel membalas 201 (store sukses); Flask lama membalas 200.
@@ -73,7 +73,7 @@ class HttpPredictionRepository implements PredictionRepository {
       if (data == null) {
         return (
           result: null,
-          failure: ServerFailure('Respons server tidak dapat dibaca.'),
+          failure: const ServerFailure(ErrorMessages.offline),
         );
       }
       try {
@@ -93,9 +93,7 @@ class HttpPredictionRepository implements PredictionRepository {
     if (response.statusCode == 401) {
       return (
         result: null,
-        failure: const AuthFailure(
-          'Sesi kalian sudah kedaluwarsa. Masuk kembali untuk menyimpan prediksi.',
-        ),
+        failure: const AuthFailure(ErrorMessages.sessionExpired),
       );
     }
 
@@ -121,6 +119,6 @@ class HttpPredictionRepository implements PredictionRepository {
         return message;
       }
     }
-    return 'Server mengembalikan status: ${response.statusCode}';
+    return ErrorMessages.fromResponse(response);
   }
 }
