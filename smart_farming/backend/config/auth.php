@@ -37,6 +37,23 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Akun admin Filament (dipakai DatabaseSeeder)
+    |--------------------------------------------------------------------------
+    |
+    | Kredensial TIDAK boleh lagi keras-code di seeder — siapa pun yang bisa
+    | membaca repo bisa masuk dashboard admin. Nilai kosong = seeder menolak
+    | jalan, jadi tidak ada akun default yang bocor ke produksi.
+    |
+    */
+
+    'panel_admin' => [
+        'name' => env('ADMIN_NAME', 'admin'),
+        'email' => env('ADMIN_EMAIL'),
+        'password' => env('ADMIN_PASSWORD'),
+    ],
+
     'guards' => [
         'web' => [
             'driver' => 'session',

@@ -1,51 +1,82 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../../config/api_config.dart';
+import '../../../../core/api_client.dart';
+import '../../../../core/error_messages.dart';
 import '../../../../core/failures.dart';
 import '../../../../core/session.dart';
 import '../../../prediction/domain/entities/prediction_request.dart';
 import '../../domain/entities/history_entry.dart';
 import '../../domain/repositories/history_repository.dart';
-import 'in_memory_history_repository.dart';
 
 /// Riwayat dari backend Laravel (GET /api/predictions).
-/// addEntry() sengaja no-op: server sudah menyimpan tiap prediksi saat
-/// POST /api/predict, menyimpan ulang akan menghasilkan duplikat.
-/// Saat server mati (mode demo offline), fallback ke penyimpanan memori.
+///
+/// Server memfilter hasil ke uid dari ID token, jadi tidak ada parameter
+/// `user_uid` di URL. addEntry() sengaja no-op: server sudah menyimpan tiap
+/// prediksi saat POST /api/predict.
 class HttpHistoryRepository implements HistoryRepository {
-  const HttpHistoryRepository({this._client});
+  HttpHistoryRepository({http.Client? client}) : _api = ApiClient(client: client);
 
-  final http.Client? _client;
+  final ApiClient _api;
 
   @override
   Future<({List<HistoryEntry> items, Failure? failure})> getHistory() async {
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}/predictions'
-      '${Session.uid == null ? '' : '?user_uid=${Uri.encodeComponent(Session.uid!)}'}',
-    );
-    try {
-      final client = _client ?? http.Client();
-      final response = await client
-          .get(url, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 3));
-
-      if (response.statusCode != 200) {
-        return (items: <HistoryEntry>[], failure: ServerFailure('Status ${response.statusCode}'));
-      }
-
-      final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      final items = (body['data'] as List<dynamic>? ?? [])
-          .cast<Map<String, dynamic>>()
-          .map(_fromJson)
-          .toList(growable: false);
-      return (items: items, failure: null);
-    } catch (e) {
-      debugPrint('[HttpHistoryRepository] Fallback ke memori: $e');
-      return InMemoryHistoryRepository.instance.getHistory();
+    // Mode Tamu read-only: riwayat pribadi tidak pernah ditampilkan, dan
+    // tidak ada permintaan jaringan yang bisa membocorkan riwayat orang lain.
+    if (Session.isGuest) {
+      return (
+        items: const <HistoryEntry>[],
+        failure: const AuthFailure('Masuk untuk melihat riwayat prediksi.'),
+      );
     }
+
+    final http.Response response;
+    try {
+      response = await _api.get('/predictions', query: const {'limit': '50'});
+    } on TimeoutException {
+      return (
+        items: const <HistoryEntry>[],
+        failure: const ServerFailure(ErrorMessages.offline),
+      );
+    } catch (e) {
+      // Sengaja tidak jatuh ke cache memori: user harus tahu server tidak
+      // terjangkau, bukan melihat daftar kosong yang tampak seperti belum ada
+      // prediksi sama sekali.
+      return (
+        items: const <HistoryEntry>[],
+        failure: NetworkFailure(ErrorMessages.fromException(e)),
+      );
+    }
+
+    if (response.statusCode == 401) {
+      return (
+        items: const <HistoryEntry>[],
+        failure: const AuthFailure(ErrorMessages.sessionExpired),
+      );
+    }
+
+    if (response.statusCode != 200) {
+      return (
+        items: const <HistoryEntry>[],
+        failure: ServerFailure(ErrorMessages.fromResponse(response)),
+      );
+    }
+
+    final body = ApiClient.jsonBody(response);
+    if (body == null) {
+      return (
+        items: const <HistoryEntry>[],
+        failure: const ServerFailure(ErrorMessages.offline),
+      );
+    }
+
+    final items = (body['data'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(_fromJson)
+        .toList(growable: false);
+
+    return (items: items, failure: null);
   }
 
   HistoryEntry _fromJson(Map<String, dynamic> json) {

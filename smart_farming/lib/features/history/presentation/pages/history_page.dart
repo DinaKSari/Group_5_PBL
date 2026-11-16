@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/app_colors.dart';
+import '../../../../core/failures.dart';
 import '../../domain/entities/history_entry.dart';
 import '../providers/history_providers.dart';
 
@@ -64,7 +65,13 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Gagal memuat riwayat', style: TextStyle(color: AppColors.muted)),
+                    // Mode Tamu & sesi kedaluwarsa punya pesan sendiri;
+                    // "Gagal memuat riwayat" saja tidak bisa ditindaklanjuti.
+                    Text(
+                      e is Failure ? e.message : 'Gagal memuat riwayat',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
                     const SizedBox(height: 12),
                     FilledButton.tonal(
                       onPressed: () => ref.invalidate(historyProvider),

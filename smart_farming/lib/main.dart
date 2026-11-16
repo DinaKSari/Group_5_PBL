@@ -6,8 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/remote_settings.dart';
 import 'core/session.dart';
-import 'core/theme_provider.dart';
+import 'features/history/presentation/providers/history_providers.dart';
+import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
 import 'features/notification/presentation/providers/notification_providers.dart';
@@ -42,6 +44,30 @@ final _darkTheme = ThemeData(
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi Firebase & background handler top-level sebelum runApp
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Base URL + batas versi dibaca dari Remote Config SEKALI saat start, dengan
+  // batas waktu pendek. Gagal/tidak ter-set pun app tetap jalan memakai nilai
+  // build (ApiConfig.buildDefault / dart-define), jadi langkah R4 di Console
+  // tidak bisa membuat aplikasi tidak bisa dibuka.
+  await loadRemoteSettings();
+
+  // Sumber kebenaran sesi: kejadian pertama = pemulihan user yang tersimpan
+  // Firebase, selanjutnya login/logout. Router & layer data hanya membaca
+  // Session, tidak pernah menebak identitas sendiri.
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    Session.uid = user?.uid;
+    Session.email = user?.email;
+    Session.name = user?.displayName;
+    if (user != null) Session.isGuest = false;
+    authStateNotifier.value = authStateNotifier.value + 1;
+  });
+
   runApp(const ProviderScope(child: App()));
 }
 
@@ -84,15 +110,25 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> {
-  late Future<void> _startup;
-  bool _notificationsStarted = false;
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
+  StreamSubscription<String?>? _uidChanges;
+  String? _lastUid;
 
   @override
   void initState() {
     super.initState();
-    _startup = _initializeFirebase();
-  }
+    WidgetsBinding.instance.addObserver(this);
+    _lastUid = Session.uid;
+
+    // Tab Beranda/Prediksi/Riwayat hidup di shell yang sama, jadi provider-nya
+    // tidak ikut mati saat ganti akun. Tanpa ini layar tetap menampilkan daftar
+    // milik akun sebelumnya sampai app ditutup paksa (ditemukan saat uji R7).
+    _uidChanges = FirebaseAuth.instance.authStateChanges().map((user) => user?.uid).listen((uid) {
+      if (uid == _lastUid) return;
+      _lastUid = uid;
+      ref.invalidate(historyProvider);
+      ref.invalidate(monitoringProvider);
+    });
 
   void _retryStartup() {
     setState(() {
@@ -107,6 +143,23 @@ class _AppState extends ConsumerState<App> {
           );
     } catch (error, stackTrace) {
       debugPrint('[App] Inisialisasi notifikasi gagal: $error\n$stackTrace');
+    }
+  }
+
+  @override
+  void dispose() {
+    _uidChanges?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hemat kuota ngrok: hanya tarik ulang saat kembali ke foreground, bukan
+    // dengan polling. Tamu ditahan karena revalidasi provider untuk sesi tanpa
+    // akun hanya membakar request tanpa bisa menampilkan data apa pun.
+    if (state == AppLifecycleState.resumed && Session.hasAccount) {
+      ref.invalidate(monitoringProvider);
     }
   }
 

@@ -56,6 +56,22 @@ void main() {
       expect(map.keys.toSet(), {'umur_hst', 'suhu', 'kelembapan', 'tds', 'ph'});
       expect(map['umur_hst'], 20);
     });
+
+    test('toMap menyertakan lokasi & tanggal_input saat tersedia (riwayat backend)', () {
+      final map = PredictionRequestModel(
+        PredictionRequest(
+          plantAge: 22,
+          temperature: 24,
+          humidity: 70,
+          tds: 650,
+          ph: 6.3,
+          location: 'Greenhouse Blok C',
+          inputDate: DateTime(2026, 11, 12),
+        ),
+      ).toMap();
+      expect(map['lokasi'], 'Greenhouse Blok C');
+      expect(map['tanggal_input'], '2026-11-12');
+    });
   });
 
   group('PredictionResultModel', () {

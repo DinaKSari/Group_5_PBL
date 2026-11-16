@@ -7,6 +7,11 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../notification/presentation/providers/notification_providers.dart';
 import '../../data/monitoring_service.dart';
 import '../providers/home_providers.dart';
+import '../../../../config/app_version.dart';
+import '../../../../core/error_messages.dart';
+import '../../../../core/failures.dart';
+import '../../../../core/remote_settings.dart';
+import '../../../../core/session.dart';
 import '../../../../routes.dart';
 import 'package:smart_farming/core/app_colors.dart';
 
@@ -91,6 +96,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(height: 14),
                     PredictionTile(onTap: () => context.go(AppRoute.prediksi)),
+                    const SizedBox(height: 10),
+                    SensorEntryTile(onTap: () => openSensorEntry(context)),
+                    const VersionNoticeBanner(),
                     const SizedBox(height: 22),
                     const SectionTile(title: 'PARAMETER KRITIS'),
                     const SizedBox(height: 4),
@@ -101,8 +109,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                         padding: EdgeInsets.symmetric(vertical: 32),
                         child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
                       ),
-                      error: (e, st) => ParamGrid(params: _paramsFrom(const MonitoringData())),
-                      data: (d) => ParamGrid(params: _paramsFrom(d)),
+                      error: (e, st) => _DataNotice(
+                        message: 'Data pemantauan gagal dimuat: $e',
+                        onRetry: () => ref.invalidate(monitoringProvider),
+                      ),
+                      data: (d) => d.failure == null
+                          ? ParamGrid(params: _paramsFrom(d))
+                          : _DataNotice(
+                              message: d.failure!,
+                              onRetry: () => ref.invalidate(monitoringProvider),
+                            ),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -116,12 +132,43 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 }
 
+/// Alasan kenapa grid kosong — server mati, sesi habis, atau mode Tamu.
+class _DataNotice extends StatelessWidget {
+  const _DataNotice({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6F4),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 28),
+          const SizedBox(height: 10),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onRetry, child: const Text('Coba lagi')),
+        ],
+      ),
+    );
+  }
+}
+
 String _fmtDate(DateTime d) {
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
   const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
+/// Baris kecil di bawah "PARAMETER KRITIS": dari mana angka ini datang, dan
+/// jalan pintas mencatat sendiri kalau belum ada apa-apa.
 class _SensorSubtitle extends StatelessWidget {
   const _SensorSubtitle({required this.monitoring});
   final AsyncValue<MonitoringData> monitoring;
@@ -129,20 +176,32 @@ class _SensorSubtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return monitoring.maybeWhen(
-      data: (d) => Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          d.sensor == null
-              ? 'Belum ada data sensor — mulai prediksi pertama Anda'
-              : 'Live dari backend • ${d.sensor!.lokasi} • ${_fmtTime(d.sensor!.updatedAt)}',
-          style: const TextStyle(color: AppColors.muted, fontSize: 11),
-        ),
+      data: (d) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              d.sensor == null
+                  ? 'Belum ada data sensor — catat parameter kebun kalian'
+                  : 'Live dari backend • ${d.sensor!.lokasi} • ${_fmtTime(d.sensor!.updatedAt)}',
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
+          ),
+          if (d.sensor == null)
+            TextButton(
+              onPressed: () => openSensorEntry(context),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Catat sekarang', style: TextStyle(fontSize: 11)),
+            ),
+        ],
       ),
-      error: (e, st) => const Align(
+      error: (e, st) => Align(
         alignment: Alignment.centerLeft,
         child: Text(
-          'Backend tidak terjangkau — menampilkan kosong (mode offline)',
-          style: TextStyle(color: AppColors.warn, fontSize: 11),
+          e is Failure ? e.message : ErrorMessages.fromException(e),
+          style: const TextStyle(color: AppColors.warn, fontSize: 11),
         ),
       ),
       orElse: () => const SizedBox.shrink(),
@@ -324,6 +383,91 @@ class PredictionTile extends StatelessWidget {
         title: Text('Mulai Prediksi Baru', style: TextStyle(color: isDark ? Colors.white : AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
         subtitle: const Text('Input parameter tinggi, pH, dan PPM selada', style: TextStyle(color: AppColors.muted, fontSize: 12)),
         trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white70 : AppColors.text),
+      ),
+    );
+  }
+}
+
+/// Peringatan versi APK tertinggal dari `minimum_supported_version` Remote Config.
+///
+/// Sengaja TANPA tombol tutup dan TANPA memblokir UI: distribusi APK di luar
+/// Play Store berarti tidak ada jalur upgrade paksa, jadi satu nilai Remote
+/// Config yang salah tidak boleh membuat aplikasi tidak bisa dipakai — hanya
+/// memberi tahu.
+class VersionNoticeBanner extends StatelessWidget {
+  const VersionNoticeBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!RemoteSettings.isOutdated(appVersion)) return const SizedBox.shrink();
+    final minimum = RemoteSettings.minimumSupportedVersion;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFFB74D)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.system_update_outlined, size: 20, color: Color(0xFF9A5B00)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Versi aplikasi ini ($appVersion) lebih lama dari versi minimum $minimum. '
+                'Ambil APK terbaru dari pengelola LettuGrow supaya data tetap cocok dengan server.',
+                style: const TextStyle(color: Color(0xFF6E4300), fontSize: 12, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pintu tunggal ke pencatatan manual. Mode Tamu tidak punya pemilik baris,
+/// jadi diberi pesan alih-alih dilempar guard router kembali ke splash.
+void openSensorEntry(BuildContext context) {
+  if (Session.isGuest) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Masuk untuk mencatat parameter kebun kalian.')));
+    return;
+  }
+  context.push(AppRoute.sensor);
+}
+
+/// Pintu ke pencatatan parameter manual (keputusan P4: belum ada sensor IoT).
+class SensorEntryTile extends StatelessWidget {
+  const SensorEntryTile({super.key, required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFDF3E2),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        leading: const DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0xFFB26A00),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Icon(Icons.edit_note_rounded, color: Colors.white),
+          ),
+        ),
+        title: const Text('Catat Parameter Kebun', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, fontSize: 15)),
+        subtitle: const Text('Ukur tangan, lalu isi umur HST, suhu, lembap, TDS & pH', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.text),
       ),
     );
   }

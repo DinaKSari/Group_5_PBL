@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/app_colors.dart';
+import '../../../../core/failures.dart';
 import '../../../../routes.dart';
 import '../../../history/domain/entities/history_entry.dart';
 import '../../../history/presentation/providers/history_providers.dart';
@@ -58,6 +59,8 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
         humidity: _values['kelembapan']!.value,
         tds: _values['tds']!.value,
         ph: _values['ph']!.value,
+        location: _location.text.trim(),
+        inputDate: _date.value,
       );
 
   Future<void> _submit() async {
@@ -71,11 +74,16 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
 
     final failure = outcome.failure;
     if (failure != null) {
+      final isAuth = failure is AuthFailure;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Prediksi gagal: ${failure.message}'),
+          content: Text(isAuth ? failure.message : 'Prediksi gagal: ${failure.message}'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
+          // Mode Tamu / sesi habis: tawarkan jalan keluar, bukan sekadar pesan.
+          action: isAuth
+              ? SnackBarAction(label: 'Masuk', onPressed: () => context.go(AppRoute.login))
+              : null,
         ),
       );
       return;
