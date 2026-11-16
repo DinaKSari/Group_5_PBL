@@ -302,7 +302,7 @@ Laporkan hasilnya apa adanya. Kalau gagal, tulis "GAGAL + gejala" — itu lebih 
 | # | Tes | Cara | Lulus kalau | Hasil |
 |---|---|---|---|---|
 | 1 | 4G asli | Matikan Wi-Fi HP, install APK, login → prediksi | hasil muncul ≤ 10 detik | **TIDAK BISA DI HP UJI** — `EQFUD64HBIZDQKTW` tanpa SIM (`gsm.sim.state=ABSENT,ABSENT`); perlu HP lain ber-SIM. Semua request hari ini lewat Wi-Fi "Kos Rahman" ke URL publik yang sama |
-| 2 | Server mati | Close ngrok + `artisan serve`, lalu buka app | ada teks "server offline", **bukan** layar kosong | **LULUS (kata pesannya perlu diperbaiki)** — 2026-11-16 lewat `deploy\logs\t2_outage.ps1`: satu klik UAC menghentikan task `\LettuGrow Tunnel` + men-taskill ngrok & php sesi-0, **menahan** keadaan mati sampai file `t2_resume.txt` (270 detik, publik balas 404), lalu menjalankan task kembali (pulih HTTP 200 dalam 41 detik). Di HP: Beranda = ikon awan-off + "Server mengembalikan respons yang tidak dapat dibaca." + tautan "Coba lagi"; Riwayat = spinner ±10 detik (`ApiClient.defaultTimeout`) lalu "Status 404" + tombol "Coba lagi". Tidak ada layar kosong/crash di tab mana pun, dan setelah stack hidup lagi kedua tombol itu mengembalikan data **tanpa menutup app** (Riwayat: 1 kartu "Bedeng Uji R7 / 25 HARI LAGI"; Beranda: "Live dari backend • Bedeng Uji R7 • 23:40", pH 6.0 / PPM 720 / 23 °C / 78 % semuanya Optimal). Yang belum lulus sebagai *pengalaman pengguna*: "Status 404" terlalu teknis dan beda dari kalimat Beranda |
+| 2 | Server mati | Close ngrok + `artisan serve`, lalu buka app | ada teks "server offline", **bukan** layar kosong | **LULUS** — 2026-11-16 lewat `deploy\logs\t2_outage.ps1`: satu klik UAC menghentikan task `\LettuGrow Tunnel` + men-taskill ngrok & php sesi-0, **menahan** keadaan mati sampai file `t2_resume.txt` (ronde 1: 270 detik; ronde 2: 75 detik), lalu menjalankan task kembali (pulih HTTP 200 dalam ±40 detik). Di HP: Beranda = ikon awan-off + kalimat + tautan "Coba lagi"; Riwayat = spinner ±10 detik (`ApiClient.defaultTimeout`) lalu kalimat + tombol "Coba lagi". Tidak ada layar kosong/crash di tab mana pun, dan setelah stack hidup lagi kedua tombol itu mengembalikan data **tanpa menutup app** (Riwayat: 1 kartu "Bedeng Uji R7 / 25 HARI LAGI"; Beranda: "Live dari backend • Bedeng Uji R7 • 23:40", pH 6.0 / PPM 720 / 23 °C / 78 % semuanya Optimal). MySQL tetap 23 pembacaan & 19 prediksi — pemadaman tidak menghapus atau menggandakan apa pun. Kalimat yang tadinya `"Status 404"` sudah dipusatkan ke `core/error_messages.dart` (`61882cb`) dan dibuktikan ulang di HP pada 07:26 dengan APK rilis baru: **"Server sedang mati. Data belum bisa dimuat — coba lagi beberapa menit."** |
 | 3 | **Reboot laptop** | Restart Windows, **jangan sentuh apa pun** selama 3 menit | app berfungsi lagi tanpa perintah manual | `[ ]` |
 | 4 | Lintas user | Akun B login di HP lain, coba buka riwayat A | ditolak 403 | `[ ]` |
 | 5 | Session kedaluwarsa | Diamkan app > 1 jam, lalu tarik data | auto-refresh atau logout, tidak hang | `[ ]` |
@@ -322,9 +322,9 @@ rangkaian dimatikan lalu `Start-ScheduledTask` menyalakan semuanya kembali dalam
 perlu dinyalakan ulang: me-restart laptop demi tes akan mematikan sesi kerja kalian, jadi itu
 keputusan manusia, bukan tugas saya.
 
-Dua temuan yang muncul saat menjalankan tes #2 dan belum diperbaiki:
+Tiga temuan dari tes #2 — dua masih terbuka, satu sudah diperbaiki:
 
-1. **Probe kesehatan `start_tunnel.ps1` salah sasaran.** Script menguji `GET /up`, padahal `/up`
+1. **MASIH TERBUKA — probe kesehatan `start_tunnel.ps1` salah sasaran.** Script menguji `GET /up`, padahal `/up`
    bukan rute API di app ini — ia menjawab **200 dengan halaman HTML welcome**. Akibatnya saat
    penjaga menyalakan ulang barusan, script menyimpulkan "Laravel siap" sedangkan yang menjawab
    port 8000 adalah `php -S 0.0.0.0:8000` milik konsol Laragon (PID 41460); Laravel yang seharusnya
@@ -332,10 +332,18 @@ Dua temuan yang muncul saat menjalankan tes #2 dan belum diperbaiki:
    origin-nya sementara penjaga hanya memeriksa ngrok — tidak ada yang sadar. Perbaikan yang benar:
    probe `GET /api/sensor/latest` (harus 401 JSON) dan cocokkan pemilik port dengan PID child yang
    script start, bukan sekadar "port 8000 sibuk".
-2. **Cold start selalu mulai dari onboarding.** Setelah `am force-stop`, app membuka slide 1, lalu
+2. **MASIH TERBUKA — cold start selalu mulai dari onboarding.** Setelah `am force-stop`, app membuka slide 1, lalu
    "Lewati" membawa ke form login yang **kosong** — tidak ada opsi "lanjutkan sebagai akun terakhir",
    padahal kredensial hanya diketahui manusia. Untuk pengguna yang sesinya masih berlaku di Firebase
    ini terasa seperti logout paksa.
+3. **SUDAH DIPERBAIKI (`61882cb`) — kalimat error tidak seragam.** Dulu Riwayat menampilkan
+   `Status 404`, Beranda "Server mengembalikan respons yang tidak dapat dibaca.", prediksi/sensor
+   "Server mengembalikan status: 500", dan kegagalan tak terduga mencetak `e.toString()` berbahasa
+   Inggris. Sekarang semuanya lewat satu peta di `lib/core/error_messages.dart` (kalimatnya dikunci
+   11 tes di `test/error_messages_test.dart`); angka status & exception hanya masuk `debugPrint`.
+   Yang masih tersisa di jalur ini: pesan **validasi 422 dari Laravel berbahasa Inggris** ("The ph
+   field must be between...") karena `backend/lang/id.json` tidak ada — jarang sampai ke layar sebab
+   app sudah memvalidasi rentang yang sama sebelum mengirim.
 
 ---
 
