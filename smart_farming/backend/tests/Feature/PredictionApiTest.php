@@ -11,6 +11,8 @@ class PredictionApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const UID = 'uid-abc';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,7 +34,6 @@ class PredictionApiTest extends TestCase
     {
         return array_merge([
             'lokasi' => 'Greenhouse Blok A',
-            'user_uid' => 'uid-abc',
             'tanggal_input' => '2026-11-12',
             'umur_hst' => 20,
             'suhu' => 23.0,
@@ -46,7 +47,8 @@ class PredictionApiTest extends TestCase
     {
         Http::fake(fn () => Http::response($this->mlPayload(), 200));
 
-        $response = $this->postJson('/api/predict', $this->validPayload());
+        $response = $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload());
 
         $response->assertStatus(201)
             ->assertJsonPath('days_left', 25)
@@ -59,7 +61,7 @@ class PredictionApiTest extends TestCase
             ]);
 
         $this->assertDatabaseHas('predictions', [
-            'user_uid' => 'uid-abc',
+            'user_uid' => self::UID,
             'lokasi' => 'Greenhouse Blok A',
             'days_left' => 25,
         ]);
@@ -70,16 +72,32 @@ class PredictionApiTest extends TestCase
 
         // store() otomatis menurunkan satu pembacaan sensor dari parameter prediksi
         $this->assertDatabaseHas('sensor_readings', [
-            'user_uid' => 'uid-abc',
+            'user_uid' => self::UID,
             'lokasi' => 'Greenhouse Blok A',
         ]);
+    }
+
+    public function test_predict_ignores_user_uid_sent_by_client(): void
+    {
+        Http::fake(fn () => Http::response($this->mlPayload(), 200));
+
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload([
+                'user_uid' => 'uid-punya-user-lain',
+            ]))
+            ->assertStatus(201);
+
+        // uid tersimpan = hasil verifikasi token, bukan nilai dari body.
+        $this->assertDatabaseHas('predictions', ['user_uid' => self::UID]);
+        $this->assertDatabaseMissing('predictions', ['user_uid' => 'uid-punya-user-lain']);
     }
 
     public function test_predict_rejects_out_of_range_value(): void
     {
         Http::fake(fn () => Http::response($this->mlPayload(), 200));
 
-        $this->postJson('/api/predict', $this->validPayload(['umur_hst' => 0]))
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload(['umur_hst' => 0]))
             ->assertStatus(422)
             ->assertJsonValidationErrors(['umur_hst']);
 
@@ -91,7 +109,8 @@ class PredictionApiTest extends TestCase
         $payload = $this->validPayload();
         unset($payload['suhu']);
 
-        $this->postJson('/api/predict', $payload)
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $payload)
             ->assertStatus(422)
             ->assertJsonValidationErrors(['suhu']);
     }
@@ -100,24 +119,92 @@ class PredictionApiTest extends TestCase
     {
         Http::fake(['*' => Http::response('', 503)]);
 
-        $this->postJson('/api/predict', $this->validPayload())
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload())
             ->assertStatus(503);
 
         $this->assertDatabaseCount('predictions', 0);
     }
 
-    public function test_predictions_are_scoped_by_user_uid(): void
+    public function test_predictions_are_scoped_to_authenticated_user(): void
     {
         $this->makePrediction('uid-1', 'Blok Satu');
         $this->makePrediction('uid-2', 'Blok Dua');
 
-        $response = $this->getJson('/api/predictions?user_uid=uid-1&limit=10');
+        $response = $this->withFirebaseUser('uid-1')->getJson('/api/predictions?limit=10');
 
         $response->assertStatus(200);
         $data = $response->json('data');
         $this->assertCount(1, $data);
         $this->assertSame('Blok Satu', $data[0]['lokasi']);
         $this->assertArrayHasKey('params', $data[0]);
+    }
+
+    public function test_query_user_uid_cannot_widen_visibility(): void
+    {
+        $this->makePrediction('uid-1', 'Blok Satu');
+        $this->makePrediction('uid-2', 'Blok Dua');
+
+        // User uid-2 mencoba memakai parameter user_uid lama milik uid-1.
+        $response = $this->withFirebaseUser('uid-2')->getJson('/api/predictions?user_uid=uid-1&limit=10');
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame('Blok Dua', $response->json('data.0.lokasi'));
+    }
+
+    public function test_predict_upserts_app_user_identity_from_token_claims(): void
+    {
+        Http::fake(fn () => Http::response($this->mlPayload(), 200));
+
+        $this->withFirebaseUser('uid-identity', 'petani@example.com', 'Pak Pearl')
+            ->postJson('/api/predict', $this->validPayload())
+            ->assertStatus(201);
+
+        // Email/nama diambil dari klaim token yang tervalidasi, bukan dari body.
+        $this->assertDatabaseHas('app_users', [
+            'uid' => 'uid-identity',
+            'email' => 'petani@example.com',
+            'name' => 'Pak Pearl',
+        ]);
+
+        $prediction = Prediction::where('user_uid', 'uid-identity')->firstOrFail();
+        $this->assertNotNull($prediction->appUser);
+        // label admin memprioritaskan nama, lalu email.
+        $this->assertSame('Pak Pearl', $prediction->appUser->label);
+
+        // Prediksi lanjutan tanpa klaim email TIDAK menghapus identitas yang sudah ada.
+        $this->withFirebaseUser('uid-identity')
+            ->postJson('/api/predict', $this->validPayload())
+            ->assertStatus(201);
+        $this->assertDatabaseHas('app_users', [
+            'uid' => 'uid-identity',
+            'email' => 'petani@example.com',
+        ]);
+    }
+
+    public function test_predict_authenticates_to_flask_with_shared_secret(): void
+    {
+        config(['services.flask.secret' => 'rahasia-uji']);
+        Http::fake(fn () => Http::response($this->mlPayload(), 200));
+
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload())
+            ->assertStatus(201);
+
+        Http::assertSent(fn ($request) => $request->hasHeader('X-ML-Token', 'rahasia-uji'));
+    }
+
+    public function test_predict_returns_503_when_flask_rejects_the_secret(): void
+    {
+        config(['services.flask.secret' => 'nilai-laravel']);
+        Http::fake(['*' => Http::response(['error' => 'token layanan tidak valid'], 401)]);
+
+        $this->withFirebaseUser(self::UID)
+            ->postJson('/api/predict', $this->validPayload())
+            ->assertStatus(503);
+
+        $this->assertDatabaseCount('predictions', 0);
     }
 
     private function makePrediction(string $uid, string $lokasi): Prediction

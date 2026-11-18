@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -5,8 +7,17 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+// key.properties ditulis oleh tool/make_keystore.ps1 dan tidak pernah masuk git.
+// Absen = build rilis tetap jalan (dipakai sehari-hari di kelas) tapi bertanda
+// tangan debug; tool/build_release.ps1 yang menolak kondisi itu.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
+
 android {
-    namespace = "com.example.smart_farming"
+    namespace = "com.lettgrow.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,8 +28,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.kelompok5.smart_farming"
+        // Package MainActivity dan entri google-services.json sama dengan namespace.
+        applicationId = "com.lettgrow.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -31,11 +42,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            // minify/shrinkResources TIDAK diaktifkan: rules R8 untuk
+            // firebase_messaging + firebase_remote_config hanya bisa dibuktikan
+            // di perangkat, dan build yang gagal diam-diam lebih buruk daripada
+            // APK yang sedikit lebih besar.
         }
     }
 }

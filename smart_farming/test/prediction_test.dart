@@ -9,28 +9,46 @@ void main() {
   const repo = FakePredictionRepository();
 
   PredictionRequest validRequest() => const PredictionRequest(
-        plantAge: 20,
-        temperature: 23,
-        humidity: 78,
-        tds: 720,
-        ph: 6.0,
-      );
+    plantAge: 20,
+    temperature: 23,
+    humidity: 78,
+    tds: 720,
+    ph: 6.0,
+  );
 
   group('FakePredictionRepository', () {
-    test('parameter valid menghasilkan prediksi hari-menuju-panen yang masuk akal', () async {
-      final outcome = await repo.predict(validRequest());
-      expect(outcome.failure, isNull);
-      expect(outcome.result, isNotNull);
-      expect(outcome.result!.daysLeft, inInclusiveRange(0, 60));
-      expect(outcome.result!.harvestDate.isAfter(outcome.result!.inputDate), isTrue);
-    });
+    test(
+      'parameter valid menghasilkan prediksi hari-menuju-panen yang masuk akal',
+      () async {
+        final outcome = await repo.predict(validRequest());
+        expect(outcome.failure, isNull);
+        expect(outcome.result, isNotNull);
+        expect(outcome.result!.daysLeft, inInclusiveRange(0, 60));
+        expect(
+          outcome.result!.harvestDate.isAfter(outcome.result!.inputDate),
+          isTrue,
+        );
+      },
+    );
 
     test('tanaman lebih muda memperpanjang sisa hari menuju panen', () async {
       final muda = await repo.predict(
-        PredictionRequest(plantAge: 10, temperature: 23, humidity: 78, tds: 720, ph: 6.0),
+        PredictionRequest(
+          plantAge: 10,
+          temperature: 23,
+          humidity: 78,
+          tds: 720,
+          ph: 6.0,
+        ),
       );
       final tua = await repo.predict(
-        PredictionRequest(plantAge: 35, temperature: 23, humidity: 78, tds: 720, ph: 6.0),
+        PredictionRequest(
+          plantAge: 35,
+          temperature: 23,
+          humidity: 78,
+          tds: 720,
+          ph: 6.0,
+        ),
       );
       expect(muda.result!.daysLeft, greaterThan(tua.result!.daysLeft));
     });
@@ -56,6 +74,22 @@ void main() {
       expect(map.keys.toSet(), {'umur_hst', 'suhu', 'kelembapan', 'tds', 'ph'});
       expect(map['umur_hst'], 20);
     });
+
+    test('toMap menyertakan lokasi & tanggal_input saat tersedia (riwayat backend)', () {
+      final map = PredictionRequestModel(
+        PredictionRequest(
+          plantAge: 22,
+          temperature: 24,
+          humidity: 70,
+          tds: 650,
+          ph: 6.3,
+          location: 'Greenhouse Blok C',
+          inputDate: DateTime(2026, 11, 12),
+        ),
+      ).toMap();
+      expect(map['lokasi'], 'Greenhouse Blok C');
+      expect(map['tanggal_input'], '2026-11-12');
+    });
   });
 
   group('PredictionResultModel', () {
@@ -69,9 +103,7 @@ void main() {
         },
         'clustering': {
           'cluster_id': 0,
-          'profile': {
-            'description': 'Kondisi Pertumbuhan Normal',
-          },
+          'profile': {'description': 'Kondisi Pertumbuhan Normal'},
         },
       };
 
@@ -84,6 +116,13 @@ void main() {
       expect(result.stageId, 1);
       expect(result.clusterDesc, 'Kondisi Pertumbuhan Normal');
       expect(result.isReady, isFalse);
+    });
+
+    test('response tanpa days_left ditolak agar tidak dianggap siap panen', () {
+      expect(
+        () => PredictionResultModel.fromJson(const {}, DateTime(2026, 11, 12)),
+        throwsFormatException,
+      );
     });
   });
 }

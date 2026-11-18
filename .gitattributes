@@ -1,0 +1,24 @@
+* text=auto
+
+# Windows batch harus CRLF supaya bisa dijalankan lewat klik/double-click.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell & konfigurasi selalu LF.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Biner: jangan pernah disentuh git (joblib model, XLSX hasil QA, gambar laporan).
+*.joblib binary
+*.xlsx binary
+*.xls binary
+*.png binary
+*.jpg binary
+*.pdf binary
+
+# Diff yang bermakna untuk file sumber.
+*.php diff=php
+*.dart text
+*.py diff=python
+*.ipynb text

@@ -47,6 +47,12 @@ class Prediction extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Petani (Firebase) yang mengirim prediksi, di-link lewat user_uid. */
+    public function appUser(): BelongsTo
+    {
+        return $this->belongsTo(AppUser::class, 'user_uid', 'uid');
+    }
+
     public function getIsReadyAttribute(): bool
     {
         return $this->days_left <= 0;

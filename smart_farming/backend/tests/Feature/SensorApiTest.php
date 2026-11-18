@@ -12,7 +12,7 @@ class SensorApiTest extends TestCase
 
     public function test_sensor_store_creates_reading_with_defaults(): void
     {
-        $this->postJson('/api/sensor', [
+        $this->withFirebaseUser('uid-a')->postJson('/api/sensor', [
             'umur_hst' => 10,
             'suhu' => 22,
             'kelembapan' => 60,
@@ -23,12 +23,30 @@ class SensorApiTest extends TestCase
             ->assertJsonPath('data.lokasi', 'Kebun')
             ->assertJsonPath('data.source', 'manual');
 
-        $this->assertDatabaseHas('sensor_readings', ['ph' => 6.2, 'lokasi' => 'Kebun']);
+        $this->assertDatabaseHas('sensor_readings', [
+            'user_uid' => 'uid-a',
+            'ph' => 6.2,
+            'lokasi' => 'Kebun',
+        ]);
+    }
+
+    public function test_sensor_store_ignores_user_uid_from_body(): void
+    {
+        $this->withFirebaseUser('uid-a')->postJson('/api/sensor', [
+            'umur_hst' => 10,
+            'suhu' => 22,
+            'kelembapan' => 60,
+            'tds' => 500,
+            'ph' => 6.2,
+            'user_uid' => 'uid-punya-user-lain',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseMissing('sensor_readings', ['user_uid' => 'uid-punya-user-lain']);
     }
 
     public function test_sensor_store_rejects_out_of_range(): void
     {
-        $this->postJson('/api/sensor', [
+        $this->withFirebaseUser('uid-a')->postJson('/api/sensor', [
             'umur_hst' => 10,
             'suhu' => 22,
             'kelembapan' => 60,
@@ -41,7 +59,8 @@ class SensorApiTest extends TestCase
 
     public function test_sensor_latest_is_null_when_no_data(): void
     {
-        $this->getJson('/api/sensor/latest?user_uid=uid-kosong')
+        $this->withFirebaseUser('uid-kosong')
+            ->getJson('/api/sensor/latest')
             ->assertStatus(200)
             ->assertJsonPath('data', null)
             ->assertJsonPath('message', 'Belum ada data sensor.');
@@ -56,11 +75,19 @@ class SensorApiTest extends TestCase
         // pastikan ordering: bacaan lama dibuat lebih tua dari yang baru
         SensorReading::whereKey($lama->id)->update(['created_at' => now()->subDay()]);
 
-        $response = $this->getJson('/api/sensor/latest?user_uid=uid-a');
-
-        $response->assertStatus(200)
+        $this->withFirebaseUser('uid-a')->getJson('/api/sensor/latest')
+            ->assertStatus(200)
             ->assertJsonPath('data.id', $baru->id)
             ->assertJsonPath('data.lokasi', 'Blok Baru');
+    }
+
+    public function test_query_user_uid_cannot_read_another_users_reading(): void
+    {
+        SensorReading::create($this->reading('uid-a', 'Blok Satu'));
+
+        $this->withFirebaseUser('uid-b')->getJson('/api/sensor/latest?user_uid=uid-a')
+            ->assertStatus(200)
+            ->assertJsonPath('data', null);
     }
 
     private function reading(string $uid, string $lokasi): array
