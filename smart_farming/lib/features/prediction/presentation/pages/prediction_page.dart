@@ -109,7 +109,9 @@ class _PrediksiPageState extends ConsumerState<PrediksiPage> {
             action: isAuth
                 ? SnackBarAction(
                     label: 'Masuk',
-                    onPressed: () => context.go(AppRoute.login),
+                    // Snackbars can outlive this page after a 401 redirects
+                    // the router; use the app router instead of stale context.
+                    onPressed: () => appRouter.go(AppRoute.login),
                   )
                 : null,
           ),

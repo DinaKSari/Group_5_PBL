@@ -51,11 +51,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDZ_Re7_IosCkrzAtGLPPaZbo1px0ZZkks',
-    appId: '1:69167210900:android:ad36d954b25dec0107af81',
-    messagingSenderId: '69167210900',
-    projectId: 'smart-farming-683ec',
-    storageBucket: 'smart-farming-683ec.firebasestorage.app',
+    apiKey: 'AIzaSyCG_BAXH21e66EhqpmUDMJbiYVaTjoyDvY',
+    appId: '1:1035020623965:android:7ed696e92db03ae1e92db4',
+    messagingSenderId: '1035020623965',
+    projectId: 'lettgrow',
+    storageBucket: 'lettgrow.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

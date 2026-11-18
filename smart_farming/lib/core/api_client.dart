@@ -30,8 +30,8 @@ class ApiClient {
     this.client,
     IdTokenSupplier? idToken,
     void Function()? onUnauthorized,
-  })  : _idToken = idToken ?? _firebaseIdToken,
-        _onUnauthorized = onUnauthorized ?? _notifySessionExpired;
+  }) : _idToken = idToken ?? _firebaseIdToken,
+       _onUnauthorized = onUnauthorized ?? _notifySessionExpired;
 
   /// null = setiap panggilan memakai `http.Client()` baru lalu ditutup.
   final http.Client? client;
@@ -55,15 +55,13 @@ class ApiClient {
     String path, {
     Map<String, String>? query,
     Duration? timeout,
-  }) =>
-      _send('GET', path, query: query, timeout: timeout);
+  }) => _send('GET', path, query: query, timeout: timeout);
 
   Future<http.Response> postJson(
     String path,
     Map<String, dynamic> json, {
     Duration? timeout,
-  }) =>
-      _send('POST', path, body: json, timeout: timeout);
+  }) => _send('POST', path, body: json, timeout: timeout);
 
   Future<http.Response> _send(
     String method,
@@ -91,11 +89,27 @@ class ApiClient {
     if (body != null) request.body = jsonEncode(body);
 
     try {
-      final streamed =
-          await activeClient.send(request).timeout(timeout ?? defaultTimeout);
+      final streamed = await activeClient
+          .send(request)
+          .timeout(timeout ?? defaultTimeout);
       final response = await http.Response.fromStream(streamed);
 
-      if (response.statusCode == 401) _onUnauthorized();
+      if (kDebugMode) {
+        debugPrint('[ApiClient] $method ${uri.path} -> ${response.statusCode}');
+      }
+      if (response.statusCode == 401) {
+        if (kDebugMode) {
+          final message = jsonBody(response)?['message'];
+          debugPrint(
+            '[ApiClient] 401 $method ${uri.path}; '
+            'firebaseUser=${_hasFirebaseUser()}; '
+            'tokenPresent=${token?.isNotEmpty == true}; '
+            'tokenAudience=${_jwtAudience(token)}; '
+            'serverMessage=$message',
+          );
+        }
+        _onUnauthorized();
+      }
 
       return response;
     } finally {
@@ -121,4 +135,26 @@ class ApiClient {
 }
 
 Future<String?> _firebaseIdToken() async =>
-    FirebaseAuth.instance.currentUser?.getIdToken(true);
+    FirebaseAuth.instance.currentUser?.getIdToken();
+
+String? _jwtAudience(String? token) {
+  final parts = token?.split('.');
+  if (parts == null || parts.length < 2) return null;
+  try {
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return payload is Map<String, dynamic> ? payload['aud']?.toString() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _hasFirebaseUser() {
+  try {
+    return FirebaseAuth.instance.currentUser != null;
+  } catch (_) {
+    // Contract tests can exercise ApiClient without initializing Firebase.
+    return false;
+  }
+}

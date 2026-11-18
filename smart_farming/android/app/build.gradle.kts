@@ -28,9 +28,7 @@ android {
     }
 
     defaultConfig {
-        // com.lettgrow.app = entri yang sama di android/app/google-services.json.
-        // `namespace` di atas SENGAJA tidak diubah: memindahkan MainActivity.kt
-        // tanpa bisa menguji build di HP adalah risiko murni.
+        // Package MainActivity dan entri google-services.json sama dengan namespace.
         applicationId = "com.lettgrow.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

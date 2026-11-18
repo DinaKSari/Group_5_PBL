@@ -52,6 +52,17 @@ const _guestLocations = {AppRoutes.home, AppRoutes.prediksi, AppRoutes.riwayat};
 
 /// Murni supaya bisa diuji tanpa widget/Firebase.
 String? redirectLocationFor(String location) {
+  // Firebase restores the persisted user before MaterialApp.router is built.
+  // Skip onboarding/login for that session instead of making the user sign in
+  // again on every app launch.
+  if (Session.hasAccount &&
+      {
+        AppRoutes.splash,
+        AppRoutes.login,
+        AppRoutes.register,
+      }.contains(location)) {
+    return AppRoutes.home;
+  }
   if (!_privateLocations.contains(location)) return null;
   if (Session.hasAccount) return null;
   if (Session.isGuest && _guestLocations.contains(location)) return null;
@@ -60,13 +71,13 @@ String? redirectLocationFor(String location) {
 
 final appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
-  refreshListenable: Listenable.merge([authStateNotifier, sessionExpiredNotifier]),
+  refreshListenable: Listenable.merge([
+    authStateNotifier,
+    sessionExpiredNotifier,
+  ]),
   redirect: (context, state) => redirectLocationFor(state.matchedLocation),
   routes: [
-    GoRoute(
-      path: '/',
-      redirect: (context, state) => AppRoutes.splash,
-    ),
+    GoRoute(path: '/', redirect: (context, state) => AppRoutes.splash),
     GoRoute(
       path: AppRoutes.splash,
       builder: (context, state) => const SplashPage(),
@@ -142,10 +153,13 @@ class MainShell extends StatelessWidget {
       body: shell,
       bottomNavigationBar: NavigationBar(
         backgroundColor: isDark ? const Color(0xFF162119) : Colors.white,
-        indicatorColor: isDark ? const Color(0xFF243B2C) : const Color(0xFFE3F1E8),
+        indicatorColor: isDark
+            ? const Color(0xFF243B2C)
+            : const Color(0xFFE3F1E8),
         selectedIndex: shell.currentIndex,
         // Tap tab aktif -> kembali ke root cabang tersebut.
-        onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
+        onDestinationSelected: (i) =>
+            shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

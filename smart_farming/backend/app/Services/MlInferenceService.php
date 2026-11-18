@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -31,12 +32,16 @@ class MlInferenceService
         }
 
         if ($response->status() === 401) {
+            Log::warning('Flask rejected the internal prediction request.', [
+                'shared_secret_configured' => $secret !== '',
+            ]);
             throw new HttpException(503,
                 'Microservice ML menolak permintaan: FLASK_ML_SHARED_SECRET (Laravel) dan '.
                 'ML_SHARED_SECRET (Flask) tidak sama.');
         }
 
         if ($response->status() === 503) {
+            Log::warning('Flask reports that the prediction model is unavailable.');
             throw new HttpException(503, 'Model ML belum siap. Jalankan pelatihan pada microservice Flask.');
         }
 

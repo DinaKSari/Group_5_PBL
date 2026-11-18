@@ -8,6 +8,7 @@ use App\Exceptions\InvalidIdTokenException;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -31,6 +32,19 @@ class VerifyFirebaseIdToken
         try {
             $identity = $this->verifier->verify($idToken);
         } catch (InvalidIdTokenException $e) {
+            $cause = $e->getPrevious();
+            $reason = $cause?->getMessage() ?? 'No verifier detail available.';
+            $reason = preg_replace(
+                '/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/',
+                '[REDACTED_TOKEN]',
+                $reason,
+            );
+            Log::warning('Firebase ID token rejected.', [
+                'path' => $request->path(),
+                'cause' => $cause ? class_basename($cause) : null,
+                'reason' => mb_substr($reason, 0, 240),
+            ]);
+
             return $this->deny('Sesi tidak valid, silakan masuk kembali.', 401);
         } catch (FirebaseConfigMissingException $e) {
             // Konfigurasi server yang bermasalah: 503 agar client tidak logout massal.
