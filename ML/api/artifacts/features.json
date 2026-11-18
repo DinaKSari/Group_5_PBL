@@ -51,24 +51,24 @@
         "MAE": 0.285,
         "RMSE": 0.507,
         "R2": 0.999,
-        "fit_seconds": 0.001,
-        "inference_ms": 0.0049
+        "fit_seconds": 0.017,
+        "inference_ms": 0.0043
       },
       {
         "model": "RandomForestRegressor",
         "MAE": 0.307,
         "RMSE": 0.587,
         "R2": 0.998,
-        "fit_seconds": 0.299,
-        "inference_ms": 0.0665
+        "fit_seconds": 0.235,
+        "inference_ms": 0.0474
       },
       {
         "model": "XGBoost",
-        "MAE": 0.328,
-        "RMSE": 0.552,
+        "MAE": 0.332,
+        "RMSE": 0.554,
         "R2": 0.998,
-        "fit_seconds": 0.113,
-        "inference_ms": 0.0141
+        "fit_seconds": 0.105,
+        "inference_ms": 0.0094
       }
     ]
   },
@@ -137,8 +137,8 @@
         "F1": 0.947,
         "CV_F1_mean": 0.9109,
         "CV_F1_std": 0.008,
-        "fit_seconds": 0.003,
-        "inference_ms": 0.0503,
+        "fit_seconds": 0.004,
+        "inference_ms": 0.0175,
         "ROC_AUC_OvR": 0.9899
       },
       {
@@ -149,8 +149,8 @@
         "F1": 0.5219,
         "CV_F1_mean": 0.5002,
         "CV_F1_std": 0.0122,
-        "fit_seconds": 0.495,
-        "inference_ms": 0.1344,
+        "fit_seconds": 0.353,
+        "inference_ms": 0.086,
         "ROC_AUC_OvR": 0.9979
       },
       {
@@ -161,8 +161,8 @@
         "F1": 1.0,
         "CV_F1_mean": 0.9987,
         "CV_F1_std": 0.0011,
-        "fit_seconds": 0.002,
-        "inference_ms": 0.006,
+        "fit_seconds": 0.001,
+        "inference_ms": 0.0046,
         "ROC_AUC_OvR": 1.0
       },
       {
@@ -173,8 +173,8 @@
         "F1": 1.0,
         "CV_F1_mean": 0.9994,
         "CV_F1_std": 0.0012,
-        "fit_seconds": 0.165,
-        "inference_ms": 0.0612,
+        "fit_seconds": 0.115,
+        "inference_ms": 0.0391,
         "ROC_AUC_OvR": 1.0
       },
       {
@@ -185,17 +185,18 @@
         "F1": 1.0,
         "CV_F1_mean": 1.0,
         "CV_F1_std": 0.0,
-        "fit_seconds": 0.255,
-        "inference_ms": 0.0148,
+        "fit_seconds": 0.17,
+        "inference_ms": 0.0242,
         "ROC_AUC_OvR": 1.0
       }
     ]
   },
   "clustering": {
-    "algorithm": "StandardScaler + KMeans (k=2)",
-    "k_selection": "silhouette maksimal dalam rentang interpretabel k=2..4 (mikroklimat kontinu)",
+    "algorithm": "StandardScaler + Spherical K-Means (cosine similarity, k=2)",
+    "distance_metric": "cosine",
+    "k_selection": "cosine silhouette maksimal dalam rentang interpretabel k=2..4 (mikroklimat kontinu)",
     "n_clusters": 2,
-    "silhouette_score": 0.235,
+    "silhouette_score": 0.3838,
     "global_means": {
       "suhu": 27.07,
       "kelembapan": 64.76,
@@ -205,38 +206,38 @@
     "elbow_silhouette": [
       {
         "k": 2,
-        "inertia": 6867.23,
-        "silhouette": 0.235
+        "inertia": 1130.6476,
+        "silhouette": 0.3838
       },
       {
         "k": 3,
-        "inertia": 5853.26,
-        "silhouette": 0.2068
+        "inertia": 876.0864,
+        "silhouette": 0.364
       },
       {
         "k": 4,
-        "inertia": 5144.79,
-        "silhouette": 0.221
+        "inertia": 736.1934,
+        "silhouette": 0.3468
       },
       {
         "k": 5,
-        "inertia": 4506.81,
-        "silhouette": 0.2197
+        "inertia": 617.2572,
+        "silhouette": 0.3767
       },
       {
         "k": 6,
-        "inertia": 3990.34,
-        "silhouette": 0.228
+        "inertia": 524.5552,
+        "silhouette": 0.3948
       },
       {
         "k": 7,
-        "inertia": 3611.31,
-        "silhouette": 0.2391
+        "inertia": 464.1669,
+        "silhouette": 0.4094
       },
       {
         "k": 8,
-        "inertia": 3262.66,
-        "silhouette": 0.2469
+        "inertia": 407.2945,
+        "silhouette": 0.4244
       }
     ],
     "profiles": {

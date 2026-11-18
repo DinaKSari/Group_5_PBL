@@ -160,7 +160,7 @@ Sistem Machine Learning pada proyek ini mengintegrasikan tiga pilar pemodelan un
 
 1. **Regresi**: Memperkirakan jumlah hari menuju panen (`days_left`) berdasarkan parameter lingkungan dan umur tanaman.
 2. **Klasifikasi**: Mengklasifikasikan fase pertumbuhan / kesiapan panen tanaman (*Semai*, *Vegetatif*, *Siap Panen*).
-3. **Klusterisasi (Clustering)**: Menyegmen profil mikroklimat tanaman hidroponik menjadi 2 zona (Sejuk / Hangat) menggunakan `StandardScaler` + K-Means.
+3. **Klusterisasi (Clustering)**: Menyegmen profil mikroklimat tanaman hidroponik menjadi 2 zona (Sejuk / Hangat) menggunakan `StandardScaler` + Cosine K-Means.
 
 ### Dataset
 
@@ -198,7 +198,7 @@ Train/Test Split (80:20)
 Multi-Task Training:
    ├── 1. Regresi (LinearRegression vs RandomForest vs XGBoost)
    ├── 2. Klasifikasi (KNN vs SVM vs Naive Bayes vs RandomForest vs XGBoost)
-   └── 3. Klusterisasi (StandardScaler + K-Means, k dipilih silhouette → k=2)
+   └── 3. Klusterisasi (StandardScaler + Cosine K-Means, k dipilih cosine silhouette → k=2)
    ↓
 Evaluasi & Validasi Model (baseline, CV-F1, confusion matrix, ROC-AUC, elbow+silhouette)
    ↓
@@ -258,17 +258,17 @@ Regresi inilah yang menghasilkan estimasi "X hari lagi" di aplikasi.*
   pelabelan fase; keputusan panen sesungguhnya dari regresi `days_left`).
 
 #### 3. Pemodelan Klusterisasi (Profil Mikroklimat Lingkungan)
-* **Algoritma**: `StandardScaler` → `KMeans`. Penskalaan wajib karena rentang TDS
-  (300–1400) mendominasi jarak Euclidean terhadap pH (4,5–8,5); tanpa scaling,
-  kluster terpecah hanya menurut nutrisi dan kehilangan makna mikroklimat.
-* **Pemilihan k**: silhouette merata rendah (0,20–0,25 untuk semua k) → mikroklimat
-  bersifat **kontinu**, bukan grup diskret ketat. Agar tetap interpretabel, k
-  dibatasi rentang 2–4 dan dipilih silhouette maksimum → **k = 2** (silhouette **0,235**).
+* **Algoritma**: `StandardScaler` → Cosine K-Means (spherical K-Means). Sampel dan
+   centroid dinormalisasi L2, lalu pengelompokan memakai cosine similarity, bukan
+   jarak Euclidean. Scaling menjaga perbedaan satuan fitur agar tidak mendominasi.
+* **Pemilihan k**: cosine silhouette digunakan untuk memilih nilai dalam rentang
+   interpretabel 2–4 karena mikroklimat bersifat **kontinu**, bukan grup diskret
+   yang ketat → **k = 2** (cosine silhouette **0,3838** pada data training).
 * **Segmentasi (relatif terhadap rata-rata global: suhu 27,1 °C, TDS 599 ppm)**:
   * `Cluster 0` — **Hangat (transpirasi tinggi)**: suhu ~31,1 °C, n = 1.295.
   * `Cluster 1` — **Sejuk**: suhu ~21,4 °C, n = 918.
-* Kurva elbow+silhouette lengkap tersimpan di `ML/reports/elbow_silhouette.png`;
-  model (pipeline scaler+KMeans) disimpan ke `artifacts/cluster.joblib`.
+* Kurva cosine inertia + cosine silhouette tersimpan di `ML/reports/elbow_silhouette.png`;
+   model (pipeline scaler+Cosine K-Means) disimpan ke `artifacts/cluster.joblib`.
 
 **Figur evaluasi** (dihasilkan `python ML/api/train.py`): `ML/reports/confusion_matrix.png`,
 `roc_auc.png`, `elbow_silhouette.png`, `feature_importance.png`.

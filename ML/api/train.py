@@ -2,7 +2,7 @@
 Training pipeline untuk Machine Learning:
 1. Regresi      : Estimasi hari menuju panen (days_left)
 2. Klasifikasi  : Prediksi fase pertumbuhan / kesiapan panen (Semai, Vegetatif, Siap Panen)
-3. Klusterisasi : Segmentasi profil mikroklimat lingkungan tanaman selada (K-Means)
+3. Klusterisasi : Segmentasi profil mikroklimat lingkungan tanaman selada (Cosine K-Means)
 
 Catatan metodologis (audit leakage - B1):
     Label `stage_class` adalah fungsi deterministik dari `umur_hst` (lihat
@@ -28,7 +28,6 @@ import matplotlib
 matplotlib.use("Agg")  # headless: simpan ke file, bukan window
 import matplotlib.pyplot as plt
 
-from sklearn.cluster import KMeans
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -52,6 +51,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.svm import SVC
+
+from cosine_kmeans import SphericalKMeans
 
 try:
     from xgboost import XGBClassifier, XGBRegressor
@@ -284,43 +285,44 @@ def train_and_evaluate():
     env_only_acc = float(accuracy_score(yce_test, env_only.predict(Xe_test)))
 
     # ==========================================
-    # 3. KLUSTERISASI (K-MEANS) + ELBOW/SILHOUETTE
+    # 3. KLUSTERISASI (COSINE K-MEANS) + ELBOW/SILHOUETTE
     # ==========================================
-    # ENV_FEATURES discaling standar (StandardScaler) sebelum K-Means. Tanpa ini,
-    # rentang TDS (300-1400) mendominasi jarak Euclidean sementara pH (4.5-8.5)
-    # nyaris tak berpengaruh, sehingga kluster hanya terpecah theo kadar nutrisi.
+    # ENV_FEATURES distandardisasi sebelum Cosine K-Means agar perbedaan satuan
+    # fitur tidak mendominasi arah vektor. Estimator menormalisasi tiap baris dan
+    # centroid, lalu melakukan assignment berdasarkan cosine similarity.
     X_env = df[ENV_FEATURES]
     scaler = StandardScaler().fit(X_env)
     X_env_scaled = scaler.transform(X_env)
+    X_env_unit = SphericalKMeans._normalize(X_env_scaled)
     k_range = range(2, 9)
 
-    # Pemilihan k. Setelah discaling, silhouette merata rendah (0.20-0.25 di
-    # semua k): mikroklimat lingkungan bersifat KONTINU, bukan grup diskret yang
+    # Pemilihan k. Setelah scaling dan metrik cosine, silhouette tetap relatif
+    # rendah: mikroklimat lingkungan bersifat KONTINU, bukan grup diskret yang
     # ketat. Maka argmax-silhouette bebas akan mengejar noise (k besar). Untuk
     # segmentasi yang dapat dibaca petani, k dibatasi ke rentang interpretabel
     # [2, K_INTERPRETABLE]; silhouette maksimal diambil di dalam rentang itu.
     K_INTERPRETABLE = 4
     elbow = []
     for k in k_range:
-        km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(X_env_scaled)
+        km = SphericalKMeans(n_clusters=k, random_state=42, n_init=10).fit(X_env_scaled)
         elbow.append({
             "k": k,
-            "inertia": round(float(km.inertia_), 2),
-            "silhouette": round(float(silhouette_score(X_env_scaled, km.labels_)), 4),
+            "inertia": round(float(km.inertia_), 4),
+            "silhouette": round(float(silhouette_score(X_env_unit, km.labels_, metric="cosine")), 4),
         })
     best_k = max(
         (e for e in elbow if e["k"] <= K_INTERPRETABLE), key=lambda e: e["silhouette"]
     )["k"]
 
-    # Pipeline scaler->KMeans disimpan apa adanya agar app.py .predict() tetap
-    # menerima nilai mentah (penskalaan terjadi internal, konsisten dgn latih).
+    # Pipeline scaler->Cosine K-Means menerima nilai mentah saat inferensi;
+    # scaling dan normalisasi arah dijalankan konsisten dengan proses latih.
     kmeans_pipe = Pipeline([
         ("scaler", scaler),
-        ("kmeans", KMeans(n_clusters=best_k, random_state=42, n_init=10)),
+        ("kmeans", SphericalKMeans(n_clusters=best_k, random_state=42, n_init=10)),
     ])
     _timed_fit(kmeans_pipe, X_env, None)
     cluster_labels = kmeans_pipe.predict(X_env)
-    sil_score = float(silhouette_score(X_env_scaled, cluster_labels))
+    sil_score = float(silhouette_score(X_env_unit, cluster_labels, metric="cosine"))
 
     # Referensi global untuk pelabelan relatif (bukan ambang absolut).
     globe = {
@@ -403,11 +405,11 @@ def train_and_evaluate():
     except Exception:
         pass
 
-    # 4c. Elbow + Silhouette K-Means
+    # 4c. Elbow (cosine inertia) + Cosine Silhouette
     fig, ax1 = plt.subplots(figsize=(6, 4))
     ks = [e["k"] for e in elbow]
-    ax1.plot(ks, [e["inertia"] for e in elbow], "o-", color="tab:green", label="Inertia (elbow)")
-    ax1.set_xlabel("k"); ax1.set_ylabel("Inertia", color="tab:green")
+    ax1.plot(ks, [e["inertia"] for e in elbow], "o-", color="tab:green", label="Cosine inertia (elbow)")
+    ax1.set_xlabel("k"); ax1.set_ylabel("Cosine inertia", color="tab:green")
     ax2 = ax1.twinx()
     ax2.plot(ks, [e["silhouette"] for e in elbow], "s--", color="tab:orange", label="Silhouette")
     ax2.set_ylabel("Silhouette Score", color="tab:orange")
@@ -459,8 +461,9 @@ def train_and_evaluate():
             "metrics": cls_results,
         },
         "clustering": {
-            "algorithm": f"StandardScaler + KMeans (k={best_k})",
-            "k_selection": f"silhouette maksimal dalam rentang interpretabel k=2..{K_INTERPRETABLE} (mikroklimat kontinu)",
+            "algorithm": f"StandardScaler + Spherical K-Means (cosine similarity, k={best_k})",
+            "distance_metric": "cosine",
+            "k_selection": f"cosine silhouette maksimal dalam rentang interpretabel k=2..{K_INTERPRETABLE} (mikroklimat kontinu)",
             "n_clusters": best_k,
             "silhouette_score": round(sil_score, 4),
             "global_means": {k: round(v, 2) for k, v in globe.items()},
@@ -491,7 +494,7 @@ def train_and_evaluate():
     for row in cm:
         print("   ", [int(v) for v in row])
 
-    print(f"\n--- 3. Klusterisasi (StandardScaler + K-Means, k optimum={best_k}) ---")
+    print(f"\n--- 3. Klusterisasi (StandardScaler + Cosine K-Means, k optimum={best_k}) ---")
     print(f"  k terpilih via silhouette maks. | Silhouette k={best_k}: {sil_score:.4f}")
     for c_id, prof in cluster_profiles.items():
         print(f"  Cluster {c_id}: {prof['description']} (n={prof['count']}) - "

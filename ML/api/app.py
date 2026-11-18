@@ -2,7 +2,7 @@
 Microservice ML (Flask) untuk Smart Farming Selada:
 1. Regresi      : Estimasi hari menuju panen (days_left)
 2. Klasifikasi  : Prediksi fase pertumbuhan / kesiapan panen (Semai, Vegetatif, Siap Panen)
-3. Klusterisasi : Analisis profil lingkungan & nutrisi mikroklimat tanaman (K-Means)
+3. Klusterisasi : Analisis profil lingkungan & nutrisi mikroklimat tanaman (Cosine K-Means)
 
 Endpoint:
 GET  /health   -> status + metadata ketiga model ML
@@ -26,6 +26,11 @@ import numpy as np
 import pandas as pd
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+try:
+    from .cosine_kmeans import SphericalKMeans  # noqa: F401 - register artifact class for package imports
+except ImportError:
+    from cosine_kmeans import SphericalKMeans  # noqa: F401 - script execution from ML/api
 
 BASE_DIR = Path(__file__).resolve().parent
 ARTIFACTS = BASE_DIR / "artifacts"
