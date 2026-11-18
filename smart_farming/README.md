@@ -83,17 +83,74 @@ lib/
 
 ## Cara Menjalankan
 
-```bash
+Satu perintah untuk demo di perangkat lewat USB:
+
+```powershell
 cd smart_farming
-flutter pub get
-flutter analyze   # wajib: No issues found
-flutter test      # wajib: hijau
-flutter run       # target Android (emulator: backend Flask di 10.0.2.2:5000)
+powershell -ExecutionPolicy Bypass -File tool/run_android.ps1 -StartBackend
 ```
+
+Skrip ini (`tool/run_android.ps1`):
+
+1. memeriksa Flask ML (5000) dan Laravel API (8000); `-StartBackend` menyalakan yang mati
+   di jendela terminal baru, `-CheckOnly` hanya memeriksa tanpa launch;
+2. memasang `adb reverse tcp:8000 tcp:8000`;
+3. menjalankan `flutter run`.
+
+Karena forwarding ADB, HP mengakses laptop sebagai `127.0.0.1:8000` (default
+`ApiConfig.baseUrl`), jadi koneksi backend tidak bergantung ke IP laptop maupun Wi-Fi —
+tetap jalan di jaringan yang memblokir komunikasi antar perangkat (client isolation) dan
+saat berpindah jaringan. `SERVER_HOST=0.0.0.0` di `backend/.env` membuat Laravel bind ke
+semua interface, sehingga jalur kabel tanpa flag `--host` pun tetap tersedia.
+
+> Halaman prediksi butuh Flask ML menyala. Kalau Flask mati, Laravel membalas 503 dan
+> aplikasi menampilkan "Layanan prediksi ML tidak dapat dihubungi." Aplikasi **tidak**
+> lagi menyamakan kondisi itu dengan data simulasi.
+
+Menjalankan tanpa kabel (HP & laptop harus saling terjangkau; tidak berlaku di Wi-Fi kampus):
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://IP-LAPTOP:8000/api   # perangkat fisik
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api    # emulator Android
+```
+
+## Build Rilis APK (Android saja)
+
+Dua skrip, urutan tidak boleh dibalik:
+
+```powershell
+cd smart_farming
+powershell -ExecutionPolicy Bypass -File tool/make_keystore.ps1    # sekali seumur hidup
+powershell -ExecutionPolicy Bypass -File tool/build_release.ps1    # tiap rilis
+```
+
+`tool/make_keystore.ps1` menanyakan passphrase dua kali lewat prompt tersembunyi dan
+meneruskannya ke `keytool` hanya sebagai environment variable proses anak — nilainya tidak
+pernah tercetak, tidak masuk command line, dan tidak pernah perlu dikirim ke chat. Hasilnya:
+keystore PKCS12 di `%USERPROFILE%\.android` + `android/key.properties` (keduanya
+ter-gitignore). **Salin keystore ke satu lokasi di luar laptop**: tanpa cadangan itu, APK
+baru tidak bisa dipasang di HP yang sudah menerima versi lama.
+
+`tool/build_release.ps1` membaca `version:` dari `pubspec.yaml`, mengopernya ke aplikasi
+lewat `--dart-define=APP_VERSION=...` (angka pembanding Remote Config tidak boleh berasal
+dari tempat lain), menolak build kalau `key.properties` belum ada (kecuali
+`-AllowDebugSigning`), lalu memverifikasi tanda tangan APK dengan **`apksigner verify
+--print-certs`** dari Android SDK build-tools. `keytool -printcert -jarfile` tidak dipakai
+lagi: APK Flutter ditandatangani scheme v2 tanpa signature v1/JAR, sehingga keytool membalas
+"Not a signed jar file" dengan exit 0 dan mudah disalahartikan sebagai "lulus".
+Artefak: `build/app/outputs/flutter-apk/app-release.apk` — APK, bukan AAB, karena AAB tidak
+bisa di-sideload. Rilis pertama 2026-11-16: 55,8 MB, `Signer #1 certificate DN:
+CN=LettuGrow, OU=Smart Farming, O=Kelompok 5, C=ID`.
+
+Base URL APK rilis diambil dari Remote Config (`api_base_url`) dan jatuh ke
+`ApiConfig.releaseDefault` (tunnel kelas) kalau Remote Config belum diset; `minify` dan
+`shrinkResources` sengaja tidak aktif (rules R8 untuk FirebaseMessaging/RemoteConfig hanya
+bisa dibuktikan di perangkat). `usesCleartextTraffic` kini hanya ada di
+`android/app/src/debug/`, jadi rilis tidak pernah menerima `http://`.
 
 ## Testing (Fase 6)
 
-15 test lulus (`flutter test`):
+59 test lulus (`flutter test`):
 
 | File | Isi |
 | --- | --- |
@@ -101,6 +158,9 @@ flutter run       # target Android (emulator: backend Flask di 10.0.2.2:5000)
 | `test/prediction_test.dart` | FakePredictionRepository sukses/heuristik/failure + contract kolom `toMap` |
 | `test/history_test.dart` | Entity `HistoryEntry` + kontrak repository (add, seed, immutable) |
 | `test/notification_contract_test.dart` | Kontrak notification dengan **fake repository tanpa Firebase** (sukses & NetworkFailure) |
+| `test/prediction_http_test.dart` | Kontrak kegagalan `HttpPredictionRepository`: 503 memakai pesan Laravel, 422 per-field, backend mati/timeout tanpa data palsu, 201 terparse |
+| `test/remote_settings_test.dart` | Holder Remote Config, prioritas dart-define → Remote Config → default build, banding versi, timeout fetch, banner versi |
+| `test/sensor_entry_test.dart` | Kontrak body `POST /api/sensor` (kolom ML + `source=manual`), guard mode Tamu/nilai di luar rentang, 422/401/socket/timeout, 3 tes widget halaman entri |
 
 ## Status Integrasi Berikutnya
 

@@ -28,7 +28,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     DeviceRegistrationClient? deviceClient,
   })  : _localNotifications = localNotifications ?? FlutterLocalNotificationsPlugin(),
         _messaging = messaging ?? FirebaseMessaging.instance,
-        _deviceClient = deviceClient ?? const DeviceRegistrationClient();
+        _deviceClient = deviceClient ?? DeviceRegistrationClient();
 
   final FlutterLocalNotificationsPlugin _localNotifications;
   final FirebaseMessaging _messaging;

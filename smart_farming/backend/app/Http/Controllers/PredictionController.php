@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PredictionRequest;
 use App\Http\Resources\PredictionResource;
 use App\Models\ActivityLog;
+use App\Models\AppUser;
 use App\Models\Prediction;
 use App\Models\SensorReading;
 use App\Services\MlInferenceService;
@@ -24,6 +25,20 @@ class PredictionController extends Controller
     public function store(PredictionRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $uid = $request->identity()->uid;
+
+        // Identitas petani (uid + email/name) diambil dari klaim token yang sudah
+        // tervalidasi, bukan dari isian client. Hanya kolom yang terisi yang ditimpa,
+        // supaya prediksi tanpa email tidak menghapus identitas yang sudah ada.
+        $petani = AppUser::firstOrNew(['uid' => $uid]);
+        if ($request->identity()->email !== null) {
+            $petani->email = $request->identity()->email;
+        }
+        if ($request->identity()->name !== null) {
+            $petani->name = $request->identity()->name;
+        }
+        $petani->save();
+
         $prediction = $this->ml->predict($request->mlFeatures());
 
         $daysLeft = (int) ($prediction['days_left'] ?? 0);
@@ -32,8 +47,7 @@ class PredictionController extends Controller
             ->toDateString();
 
         $record = Prediction::create([
-            'user_id' => $request->user()?->id,
-            'user_uid' => $data['user_uid'] ?? null,
+            'user_uid' => $uid,
             'lokasi' => $data['lokasi'] ?? 'Kebun',
             'tanggal_input' => $data['tanggal_input'] ?? now()->toDateString(),
             'umur_hst' => $data['umur_hst'],
@@ -50,7 +64,7 @@ class PredictionController extends Controller
         ]);
 
         SensorReading::create([
-            'user_uid' => $data['user_uid'] ?? null,
+            'user_uid' => $uid,
             'lokasi' => $record->lokasi,
             'umur_hst' => $data['umur_hst'],
             'suhu' => $data['suhu'],
@@ -76,13 +90,13 @@ class PredictionController extends Controller
     }
 
     /**
-     * Riwayat prediksi. user_uid (Firebase) -> milik user tsb; tanpa user_uid -> seluruhnya.
+     * Riwayat prediksi milik user yang terautentikasi. Tidak ada jalur untuk
+     * membaca riwayat user lain, termasuk tanpa filter.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Prediction::query()
-            ->when($request->query('user_uid'), fn ($q, $uid) => $q->where('user_uid', $uid))
-            ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
+            ->where('user_uid', $request->attributes->get('firebase_identity')->uid)
             ->latest()
             ->limit((int) $request->integer('limit', 50));
 

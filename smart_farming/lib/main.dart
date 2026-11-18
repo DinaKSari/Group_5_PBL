@@ -6,11 +6,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/remote_settings.dart';
 import 'core/session.dart';
-import 'core/theme_provider.dart';
+import 'features/history/presentation/providers/history_providers.dart';
+import 'features/home/presentation/providers/home_providers.dart';
 import 'features/notification/data/repositories/notification_repository_impl.dart'
     show firebaseMessagingBackgroundHandler;
 import 'features/notification/presentation/providers/notification_providers.dart';
+import 'features/profile/presentation/providers/profile_providers.dart';
 import 'firebase_options.dart';
 import 'routes.dart';
 
@@ -40,26 +43,16 @@ final _darkTheme = ThemeData(
   ),
 );
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProviderScope(child: App()));
 }
 
 Future<void> _initializeFirebase() async {
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-  } on FirebaseException catch (e) {
-    if (e.code != 'duplicate-app') {
-      debugPrint('[Firebase] Inisialisasi Firebase warning: $e');
-    }
-  } catch (e) {
-    if (!e.toString().contains('duplicate-app')) {
-      debugPrint('[Firebase] Inisialisasi Firebase error: $e');
-    }
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   }
 
   try {
@@ -68,13 +61,13 @@ Future<void> _initializeFirebase() async {
     debugPrint('[FirebaseMessaging] Background handler error: $e');
   }
 
-  try {
-    final restoredUser = FirebaseAuth.instance.currentUser;
-    Session.uid = restoredUser?.uid;
-    Session.email = restoredUser?.email;
-  } catch (e) {
-    debugPrint('[Session] Pulihkan sesi error: $e');
-  }
+  // Remote Config gagal secara tertutup dan tetap memakai nilai build.
+  await loadRemoteSettings();
+
+  final restoredUser = FirebaseAuth.instance.currentUser;
+  Session.uid = restoredUser?.uid;
+  Session.email = restoredUser?.email;
+  Session.name = restoredUser?.displayName;
 }
 
 class App extends ConsumerStatefulWidget {
@@ -84,35 +77,82 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> {
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   late Future<void> _startup;
   bool _notificationsStarted = false;
+  StreamSubscription<User?>? _uidChanges;
+  String? _lastUid;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startStartup();
+  }
+
+  void _startStartup() {
     _startup = _initializeFirebase();
+    _startup.then(
+      (_) {
+        if (!mounted) return;
+        _lastUid = FirebaseAuth.instance.currentUser?.uid;
+        _uidChanges?.cancel();
+        _uidChanges = FirebaseAuth.instance.authStateChanges().listen((user) {
+          Session.uid = user?.uid;
+          Session.email = user?.email;
+          Session.name = user?.displayName;
+          if (user != null) Session.isGuest = false;
+
+          final uid = user?.uid;
+          if (uid == _lastUid) return;
+          _lastUid = uid;
+          ref.invalidate(historyProvider);
+          ref.invalidate(monitoringProvider);
+          ref.invalidate(currentProfileProvider);
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('[Firebase] Bootstrap gagal: $error\n$stackTrace');
+      },
+    );
   }
 
   void _retryStartup() {
     setState(() {
-      _startup = _initializeFirebase();
+      _startStartup();
     });
   }
 
   Future<void> _initializeNotifications() async {
     try {
-      await ref.read(notificationRepositoryProvider).initialize(
-            onNotificationOpened: (route) => appRouter.go(route),
-          );
+      await ref
+          .read(notificationRepositoryProvider)
+          .initialize(onNotificationOpened: (route) => appRouter.go(route));
     } catch (error, stackTrace) {
       debugPrint('[App] Inisialisasi notifikasi gagal: $error\n$stackTrace');
     }
   }
 
   @override
+  void dispose() {
+    _uidChanges?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hemat kuota ngrok: hanya tarik ulang saat kembali ke foreground, bukan
+    // dengan polling. Tamu ditahan karena revalidasi provider untuk sesi tanpa
+    // akun hanya membakar request tanpa bisa menampilkan data apa pun.
+    if (state == AppLifecycleState.resumed && Session.hasAccount) {
+      ref.invalidate(monitoringProvider);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
+    const themeMode = ThemeMode.system;
 
     return FutureBuilder<void>(
       future: _startup,
@@ -185,7 +225,10 @@ class _StartupPage extends StatelessWidget {
               ),
               if (onRetry != null) ...[
                 const SizedBox(height: 16),
-                FilledButton(onPressed: onRetry, child: const Text('Coba lagi')),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Coba lagi'),
+                ),
               ],
             ],
           ),

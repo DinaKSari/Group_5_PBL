@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../routes.dart';
 import '../../../../core/app_colors.dart';
+import '../../../../core/session.dart';
 
 class _SplashSlideData {
   const _SplashSlideData({
@@ -297,7 +298,13 @@ class _SplashPageState extends State<SplashPage> {
 
                     // Secondary Direct Bypass Button
                     TextButton(
-                      onPressed: () => context.go(AppRoute.home),
+                      onPressed: () {
+                        // Mode Tamu = read-only: tanpa akun tidak ada identitas
+                        // untuk API, jadi layer data menolak menulis/membaca
+                        // riwayat (lihat core/session.dart & RUNBOOK R1).
+                        Session.isGuest = true;
+                        context.go(AppRoute.home);
+                      },
                       style: TextButton.styleFrom(foregroundColor: AppColors.accent),
                       child: const Text(
                         'Masuk Langsung sebagai Tamu',

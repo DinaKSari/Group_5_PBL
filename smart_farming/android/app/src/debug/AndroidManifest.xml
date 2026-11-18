@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Hanya build debug: memperbolehkan http://127.0.0.1:8000 (adb reverse)
+         dan http://IP-laptop:8000 saat debugging satu jaringan. Rilis tetap
+         HTTPS-only, jadi tidak ada jalur data user lewat jaringan tanpa enkripsi. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

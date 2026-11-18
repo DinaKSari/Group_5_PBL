@@ -36,8 +36,26 @@ return [
     ],
 
     'flask' => [
-        'url' => env('FLASK_ML_BASE_URL', 'http://127.0.0.1:5057'),
+        'url' => env('FLASK_ML_BASE_URL', 'http://127.0.0.1:5000'),
         'timeout' => (int) env('FLASK_ML_TIMEOUT', 8),
+        // Rahasia bersama: Flask menolak panggilan tanpa header X-ML-Token yang
+        // sama. Kosong = Flask menolak semuanya (lihat ML/api/app.py).
+        'secret' => env('FLASK_ML_SHARED_SECRET', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Firebase (verifikasi ID token user API)
+    |--------------------------------------------------------------------------
+    |
+    | credentials = path ABSOLUT atau relatif dari aplikasi ke service account JSON.
+    | File-nya TIDAK boleh masuk git; simpan di storage/app/private/.
+    |
+    */
+
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
     ],
 
 ];

@@ -9,6 +9,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class PredictionsTable
@@ -19,6 +20,11 @@ class PredictionsTable
             ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('lokasi')->label('Lokasi')->searchable()->wrap(),
+                TextColumn::make('appUser.label')
+                    ->label('Petani')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->tooltip(fn (Prediction $record): ?string => $record->appUser?->uid),
                 TextColumn::make('days_left')
                     ->label('Hari Lagi')
                     ->badge()
@@ -33,6 +39,11 @@ class PredictionsTable
                 TextColumn::make('created_at')->label('Disimpan')->dateTime()->since()->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('petani')
+                    ->label('Petani')
+                    ->relationship('appUser', 'email')
+                    ->searchable()
+                    ->preload(),
                 Filter::make('ready')
                     ->label('Hanya siap panen')
                     ->query(fn ($query) => $query->where('days_left', '<=', 0)),

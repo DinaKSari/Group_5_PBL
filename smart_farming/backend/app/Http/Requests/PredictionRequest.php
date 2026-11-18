@@ -2,13 +2,24 @@
 
 namespace App\Http\Requests;
 
+use App\Support\FirebaseIdentity;
 use Illuminate\Foundation\Http\FormRequest;
 
 class PredictionRequest extends FormRequest
 {
+    /**
+     * Identitas wajib datang dari middleware firebase.auth, bukan dari client.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->identity() !== null;
+    }
+
+    public function identity(): ?FirebaseIdentity
+    {
+        $identity = $this->attributes->get('firebase_identity');
+
+        return $identity instanceof FirebaseIdentity ? $identity : null;
     }
 
     /**
@@ -19,7 +30,6 @@ class PredictionRequest extends FormRequest
         return [
             'lokasi' => ['nullable', 'string', 'max:120'],
             'tanggal_input' => ['nullable', 'date'],
-            'user_uid' => ['nullable', 'string', 'max:128'],
             'umur_hst' => ['required', 'numeric', 'between:1,45'],
             'suhu' => ['required', 'numeric', 'between:10,40'],
             'kelembapan' => ['required', 'numeric', 'between:30,100'],
